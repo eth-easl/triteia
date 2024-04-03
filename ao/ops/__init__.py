@@ -1,15 +1,16 @@
 import torch
-from ao.linalg import bmm, matmul
+from ao.ops.linalg import bmm, matmul
+
 
 def default_compile(fn):
-    return torch.compile(fn, 
-        mode="reduce-overhead"
+    return torch.compile(
+        fn,
+        mode="reduce-overhead",
+        # dynamic=True,
     )
 
-bmm = default_compile(bmm)
-matmul = default_compile(matmul)
 
-__all__ = [
-    'bmm',
-    'matmul'
-]
+# bmm = default_compile(bmm)
+# matmul = default_compile(matmul)
+
+__all__ = ["bmm", "matmul"]
