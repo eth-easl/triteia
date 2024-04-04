@@ -222,7 +222,7 @@ def transpose_quant_matmul_248_kernel(
 
 
 def quant_matmul_248(
-    bitwidth, x, qweight, qzeros, scale, g_idx, bias: Optional[torch.Tensor] = None
+    bitwidth, x, qweight, qzero, scale, g_idx, bias: Optional[torch.Tensor] = None
 ):
     maxq = 2**bitwidth - 1
     with torch.cuda.device(x.device):
@@ -238,7 +238,7 @@ def quant_matmul_248(
             qweight,
             output,
             scale.to(x.dtype),
-            qzeros,
+            qzero,
             g_idx,
             x.shape[0],
             qweight.shape[1],
@@ -252,14 +252,14 @@ def quant_matmul_248(
             output.stride(0),
             output.stride(1),
             scale.stride(0),
-            qzeros.stride(0),
+            qzero.stride(0),
         )
         if bias is not None:
             output += bias
         return output
 
 
-def transpose_quant_matmul_248(input, qweight, scales, qzeros, g_idx, bits, maxq):
+def transpose_quant_matmul_248(input, qweight, scales, qzero, g_idx, bits, maxq):
     with torch.cuda.device(input.device):
         output_dim = (qweight.shape[0] * 32) // bits
         output = torch.empty(
@@ -274,7 +274,7 @@ def transpose_quant_matmul_248(input, qweight, scales, qzeros, g_idx, bits, maxq
             qweight,
             output,
             scales.to(input.dtype),
-            qzeros,
+            qzero,
             g_idx,
             input.shape[0],
             qweight.shape[1],
@@ -288,12 +288,12 @@ def transpose_quant_matmul_248(input, qweight, scales, qzeros, g_idx, bits, maxq
             output.stride(0),
             output.stride(1),
             scales.stride(0),
-            qzeros.stride(0),
+            qzero.stride(0),
         )
         return output
 
 
-def quant_matmul_inference_only_248(input, qweight, scales, qzeros, g_idx, bits, maxq):
+def quant_matmul_inference_only_248(input, qweight, scales, qzero, g_idx, bits, maxq):
     with torch.cuda.device(input.device):
         output = torch.empty(
             (input.shape[0], qweight.shape[1]), device=input.device, dtype=torch.float16
@@ -307,7 +307,7 @@ def quant_matmul_inference_only_248(input, qweight, scales, qzeros, g_idx, bits,
             qweight,
             output,
             scales,
-            qzeros,
+            qzero,
             g_idx,
             input.shape[0],
             qweight.shape[1],
@@ -321,7 +321,7 @@ def quant_matmul_inference_only_248(input, qweight, scales, qzeros, g_idx, bits,
             output.stride(0),
             output.stride(1),
             scales.stride(0),
-            qzeros.stride(0),
+            qzero.stride(0),
         )
         return output
 
@@ -329,22 +329,22 @@ def quant_matmul_inference_only_248(input, qweight, scales, qzeros, g_idx, bits,
 class QuantLinearFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
-    def forward(ctx, input, qweight, scales, qzeros, g_idx, bits, maxq):
-        output = quant_matmul_248(input, qweight, scales, qzeros, g_idx, bits, maxq)
-        ctx.save_for_backward(qweight, scales, qzeros, g_idx)
+    def forward(ctx, input, qweight, scales, qzero, g_idx, bits, maxq):
+        output = quant_matmul_248(input, qweight, scales, qzero, g_idx, bits, maxq)
+        ctx.save_for_backward(qweight, scales, qzero, g_idx)
         ctx.bits, ctx.maxq = bits, maxq
         return output
 
     @staticmethod
     @custom_bwd
     def backward(ctx, grad_output):
-        qweight, scales, qzeros, g_idx = ctx.saved_tensors
+        qweight, scales, qzero, g_idx = ctx.saved_tensors
         bits, maxq = ctx.bits, ctx.maxq
         grad_input = None
 
         if ctx.needs_input_grad[0]:
             grad_input = transpose_quant_matmul_248(
-                grad_output, qweight, scales, qzeros, g_idx, bits, maxq
+                grad_output, qweight, scales, qzero, g_idx, bits, maxq
             )
         return grad_input, None, None, None, None, None, None
 
@@ -352,6 +352,6 @@ class QuantLinearFunction(torch.autograd.Function):
 class QuantLinearInferenceOnlyFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd(cast_inputs=torch.float16)
-    def forward(ctx, input, qweight, scales, qzeros, g_idx, bits, maxq):
-        output = quant_matmul_248(input, qweight, scales, qzeros, g_idx, bits, maxq)
+    def forward(ctx, input, qweight, scales, qzero, g_idx, bits, maxq):
+        output = quant_matmul_248(input, qweight, scales, qzero, g_idx, bits, maxq)
         return output

@@ -1,7 +1,6 @@
 import torch
 from typing import Optional
 
-
 def native_matmul_lowprec_248(
     bitwidth: int,
     x: torch.Tensor,
@@ -11,16 +10,17 @@ def native_matmul_lowprec_248(
     g_idx: torch.Tensor,
     bias: Optional[torch.Tensor] = None,
 ):
+    assert x.dim() == 2, "x must be 2-dimensional"
+    assert bitwidth in [2, 4, 8], "Only bitwidths of 2, 4, and 8 are supported"
+    assert qweight.dtype == torch.int32, "qweight must be of type torch.int32"
+    print(qweight.shape)
+    assert qweight.dim() == 2, "qweight must be 2-dimensional"
+    
     infeatures = (
         qweight.shape[0] // bitwidth * 32
     )  # qweight is stored in 32-bit integers (packed)
     outfeatures = qweight.shape[1]
 
-    assert bitwidth in [2, 4, 8], "Only bitwidths of 2, 4, and 8 are supported"
-    assert qweight.dtype == torch.int32, "qweight must be of type torch.int32"
-    # qweight shape should be 2 dimensional
-    assert qweight.dim() == 2, "qweight must be 2-dimensional"
-    # qzero is also two dimensional
     assert qzero.dim() == 2, "qzero must be 2-dimensional"
     assert (
         qzero.shape[1] == outfeatures // 32 * bitwidth
@@ -67,3 +67,30 @@ def native_matmul_lowprec_248(
     out = out.reshape(out_shape)
     out = out + bias if bias is not None else out
     return out
+
+def native_bmm_lowprec(
+        bitwidth: int,
+        x: torch.Tensor,
+        qweight: torch.Tensor,
+        qzero: torch.Tensor,
+        scale: torch.Tensor,
+        g_idx: torch.Tensor,
+        bias: Optional[torch.Tensor] = None
+    ):
+    assert x.dim() == 3, "x must be 3-dimensional (bsz, M, K)"
+    # loop over the batch dimension
+    out = []
+    for i in range(x.shape[0]):
+        print(qweight[0].shape)
+        out.append(
+            native_matmul_lowprec_248(
+                bitwidth,
+                x[i],
+                qweight[i],
+                qzero[i],
+                scale[i],
+                g_idx[i],
+                bias[i] if bias is not None else None
+            )
+        )
+    return torch.stack(out)

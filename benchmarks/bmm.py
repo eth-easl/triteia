@@ -2,7 +2,6 @@ import triton
 import torch
 from ao.ops import bmm
 
-
 @triton.testing.perf_report(
     triton.testing.Benchmark(
         x_names=["B"],
@@ -33,6 +32,4 @@ def benchmark(B, provider):
     return perf(ms), perf(max_ms), perf(min_ms)
 
 
-benchmark.run(
-    print_data=True, show_plots=True, save_path="ao/benchmarks/results/square_matmul"
-)
+benchmark.run(print_data=True, show_plots=True, save_path="benchmarks/results/bmm")

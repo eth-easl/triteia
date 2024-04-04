@@ -60,5 +60,5 @@ tmp/
 *.sqlite
 *.db
 
-ao/benchmarks/results/
+benchmarks/results/
 .local/

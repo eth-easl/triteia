@@ -31,5 +31,5 @@ def benchmark(M, N, K, provider):
 
 
 benchmark.run(
-    print_data=True, show_plots=True, save_path="ao/benchmarks/results/square_matmul"
+    print_data=True, show_plots=True, save_path="benchmarks/results/square_matmul"
 )

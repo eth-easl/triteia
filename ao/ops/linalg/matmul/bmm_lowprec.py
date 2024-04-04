@@ -140,59 +140,62 @@ def quant_bmm_248_kernel(
 class QuantLinearFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
-    def forward(ctx, input, qweight, scales, qzeros, g_idx, bits, maxq):
-        output = quant_bmm_248(input, qweight, scales, qzeros, g_idx, bits, maxq)
-        ctx.save_for_backward(qweight, scales, qzeros, g_idx)
+    def forward(ctx, input, qweight, scales, qzero, g_idx, bits, maxq):
+        output = quant_bmm_248(input, qweight, scales, qzero, g_idx, bits, maxq)
+        ctx.save_for_backward(qweight, scales, qzero, g_idx)
         ctx.bits, ctx.maxq = bits, maxq
         return output
 
 
-def quant_bmm_248(input, qweight, scales, qzeros, g_idx, bits, maxq):
-    with torch.cuda.device(input.device):
-        bsz = input.shape[0]
+def quant_bmm_248(bitwidth, x, qweight, qzero, scales, g_idx, bias=None):
+    maxq = 2 ** bitwidth - 1
+    with torch.cuda.device(x.device):
+        bsz = x.shape[0]
         output = torch.empty(
-            (input.shape[0], input.shape[1], qweight.shape[2]),
-            device=input.device,
+            (x.shape[0], x.shape[1], qweight.shape[2]),
+            device=x.device,
             dtype=torch.float16,
         )
         grid = lambda META: (
             bsz,
-            triton.cdiv(input.shape[1], META["BLOCK_SIZE_M"])
+            triton.cdiv(x.shape[1], META["BLOCK_SIZE_M"])
             * triton.cdiv(qweight.shape[2], META["BLOCK_SIZE_N"]),
         )
         quant_bmm_248_kernel[grid](
-            input,
+            x,
             qweight,
             output,
             scales,
-            qzeros,
+            qzero,
             g_idx,
-            input.shape[1],
+            x.shape[1],
             qweight.shape[2],
-            input.shape[2],
-            bits,
+            x.shape[2],
+            bitwidth,
             maxq,
-            input.stride(1),
-            input.stride(2),
+            x.stride(1),
+            x.stride(2),
             qweight.stride(1),
             qweight.stride(2),
             output.stride(1),
             output.stride(2),
             scales.stride(1),
-            qzeros.stride(1),
-            input.stride(0),
+            qzero.stride(1),
+            x.stride(0),
             qweight.stride(0),
             output.stride(0),
             scales.stride(0),
-            qzeros.stride(0),
+            qzero.stride(0),
             g_idx.stride(0),
         )
+        if bias is not None:
+            output += bias
         return output
 
 
 class QuantLinearInferenceOnlyFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd(cast_inputs=torch.float16)
-    def forward(ctx, input, qweight, scales, qzeros, g_idx, bits, maxq):
-        output = quant_bmm_248(input, qweight, scales, qzeros, g_idx, bits, maxq)
+    def forward(ctx, input, qweight, scales, qzero, g_idx, bits, maxq):
+        output = quant_bmm_248(input, qweight, scales, qzero, g_idx, bits, maxq)
         return output

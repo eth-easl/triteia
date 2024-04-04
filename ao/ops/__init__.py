@@ -5,6 +5,8 @@ from ao.ops.linalg import (
     native_matmul_lowprec_248,
     quant_matmul_248,
     transpose_quant_matmul_248,
+    native_bmm_lowprec,
+    quant_bmm_248,
 )
 from ao.ops.activations.silu import silu
 
@@ -26,5 +28,7 @@ __all__ = [
     "native_matmul_lowprec_248",
     "quant_matmul_248",
     "transpose_quant_matmul_248",
+    "native_bmm_lowprec",
     "silu",
+    "quant_bmm_248",
 ]
