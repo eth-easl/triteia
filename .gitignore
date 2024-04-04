@@ -61,3 +61,4 @@ tmp/
 *.db
 
 ao/benchmarks/results/
+.local/
