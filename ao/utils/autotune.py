@@ -6,6 +6,69 @@ import triton
 import builtins
 from typing import Dict
 
+default_config = [
+    triton.Config(
+        {
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 8,
+        },
+        num_stages=4,
+        num_warps=4,
+    ),
+    triton.Config(
+        {
+            "BLOCK_SIZE_M": 128,
+            "BLOCK_SIZE_N": 128,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 8,
+        },
+        num_stages=4,
+        num_warps=4,
+    ),
+    triton.Config(
+        {
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 128,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 8,
+        },
+        num_stages=4,
+        num_warps=4,
+    ),
+    triton.Config(
+        {
+            "BLOCK_SIZE_M": 128,
+            "BLOCK_SIZE_N": 32,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 8,
+        },
+        num_stages=4,
+        num_warps=4,
+    ),
+    triton.Config(
+        {
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 64,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 8,
+        },
+        num_stages=4,
+        num_warps=4,
+    ),
+    triton.Config(
+        {
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 128,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 8,
+        },
+        num_stages=2,
+        num_warps=8,
+    ),
+]
+
 
 class CustomizedTritonAutoTuner(triton.KernelInterface):
     def __init__(
@@ -158,23 +221,6 @@ class CustomizedTritonAutoTuner(triton.KernelInterface):
         self.nargs = None
 
 
-def autotune(
-    configs, key, prune_configs_by=None, reset_to_zero=None, nearest_power_of_two=False
-):
-    def decorator(fn):
-        return CustomizedTritonAutoTuner(
-            fn,
-            fn.arg_names,
-            configs,
-            key,
-            reset_to_zero,
-            prune_configs_by,
-            nearest_power_of_two,
-        )
-
-    return decorator
-
-
 def matmul248_kernel_config_pruner(configs, nargs):
     """
     The main purpose of this function is to shrink BLOCK_SIZE_* when the corresponding dimension is smaller.
@@ -222,4 +268,22 @@ def matmul248_kernel_config_pruner(configs, nargs):
         )
 
 
-__all__ = ["autotune"]
+def autotune(
+    key,
+    configs=default_config,
+    prune_configs_by=None,
+    reset_to_zero=None,
+    nearest_power_of_two=False,
+):
+    def decorator(fn):
+        return CustomizedTritonAutoTuner(
+            fn,
+            fn.arg_names,
+            configs,
+            key,
+            reset_to_zero,
+            prune_configs_by,
+            nearest_power_of_two,
+        )
+
+    return decorator

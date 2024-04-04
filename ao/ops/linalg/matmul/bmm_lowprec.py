@@ -2,76 +2,14 @@ import torch
 import triton
 import triton.language as tl
 from torch.cuda.amp import custom_fwd
-import ao.utils.autotune as custom_autotune
+import ao.utils.autotune as autotune
 
 
-@custom_autotune.autotune(
-    configs=[
-        triton.Config(
-            {
-                "BLOCK_SIZE_M": 64,
-                "BLOCK_SIZE_N": 256,
-                "BLOCK_SIZE_K": 32,
-                "GROUP_SIZE_M": 8,
-            },
-            num_stages=4,
-            num_warps=4,
-        ),
-        triton.Config(
-            {
-                "BLOCK_SIZE_M": 128,
-                "BLOCK_SIZE_N": 128,
-                "BLOCK_SIZE_K": 32,
-                "GROUP_SIZE_M": 8,
-            },
-            num_stages=4,
-            num_warps=4,
-        ),
-        triton.Config(
-            {
-                "BLOCK_SIZE_M": 64,
-                "BLOCK_SIZE_N": 128,
-                "BLOCK_SIZE_K": 32,
-                "GROUP_SIZE_M": 8,
-            },
-            num_stages=4,
-            num_warps=4,
-        ),
-        triton.Config(
-            {
-                "BLOCK_SIZE_M": 128,
-                "BLOCK_SIZE_N": 32,
-                "BLOCK_SIZE_K": 32,
-                "GROUP_SIZE_M": 8,
-            },
-            num_stages=4,
-            num_warps=4,
-        ),
-        triton.Config(
-            {
-                "BLOCK_SIZE_M": 64,
-                "BLOCK_SIZE_N": 64,
-                "BLOCK_SIZE_K": 32,
-                "GROUP_SIZE_M": 8,
-            },
-            num_stages=4,
-            num_warps=4,
-        ),
-        triton.Config(
-            {
-                "BLOCK_SIZE_M": 64,
-                "BLOCK_SIZE_N": 128,
-                "BLOCK_SIZE_K": 32,
-                "GROUP_SIZE_M": 8,
-            },
-            num_stages=2,
-            num_warps=8,
-        ),
-    ],
+@autotune.autotune(
     key=["M", "N", "K"],
     nearest_power_of_two=True,
     prune_configs_by={
-        "early_config_prune": custom_autotune.matmul248_kernel_config_pruner,
+        "early_config_prune": autotune.matmul248_kernel_config_pruner,
         "perf_model": None,
         "top_k": None,
     },

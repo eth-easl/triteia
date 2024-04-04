@@ -2,6 +2,7 @@ import triton
 import torch
 from ao.ops import bmm
 
+
 @triton.testing.perf_report(
     triton.testing.Benchmark(
         x_names=["B"],
@@ -13,7 +14,7 @@ from ao.ops import bmm
         args={},
     )
 )
-def benchmark(B,provider):
+def benchmark(B, provider):
     M = 512
     K = 512
     N = 512

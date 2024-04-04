@@ -1,5 +1,12 @@
 import torch
-from ao.ops.linalg import bmm, matmul, native_matmul_lowprec_248
+from ao.ops.linalg import (
+    bmm,
+    matmul,
+    native_matmul_lowprec_248,
+    quant_matmul_248,
+    transpose_quant_matmul_248,
+)
+from ao.ops.activations.silu import silu
 
 
 def default_compile(fn):
@@ -13,4 +20,11 @@ def default_compile(fn):
 # bmm = default_compile(bmm)
 # matmul = default_compile(matmul)
 
-__all__ = ["bmm", "matmul", "native_matmul_lowprec_248"]
+__all__ = [
+    "bmm",
+    "matmul",
+    "native_matmul_lowprec_248",
+    "quant_matmul_248",
+    "transpose_quant_matmul_248",
+    "silu",
+]

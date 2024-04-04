@@ -1,32 +1,12 @@
 import torch
 import triton
 import triton.language as tl
+import ao.utils.autotune as autotune
 
 
-@triton.autotune(
-    configs=[
-        triton.Config(
-            {
-                "BLOCK_SIZE_M": 128,
-                "BLOCK_SIZE_N": 64,
-                "BLOCK_SIZE_K": 32,
-                "GROUP_SIZE_M": 8,
-            },
-            num_stages=4,
-            num_warps=4,
-        ),
-        triton.Config(
-            {
-                "BLOCK_SIZE_M": 64,
-                "BLOCK_SIZE_N": 128,
-                "BLOCK_SIZE_K": 32,
-                "GROUP_SIZE_M": 8,
-            },
-            num_stages=4,
-            num_warps=4,
-        ),
-    ],
+@autotune.autotune(
     key=["M", "N", "K"],
+    nearest_power_of_two=True,
 )
 @triton.jit
 def bmm_kernel(
