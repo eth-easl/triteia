@@ -45,13 +45,11 @@ class TestBMMLowPrec(unittest.TestCase):
             x = torch.randn((bsz, 512, 4096), device="cuda", dtype=torch.float16)
             bias = torch.randn((bsz, 512, 4096), device="cuda", dtype=torch.float16)
             qweights = qweight.repeat(bsz, 1, 1)
-            qzeros = qzero.repeat(bsz, 1)
-            scales = scale.repeat(bsz, 1)
+            qzeros = qzero.repeat(bsz, 1,1)
+            scales = scale.repeat(bsz, 1,1)
             g_idxs = g_idx.repeat(bsz, 1)
-            biases = bias.repeat(bsz, 1, 1)
-
-            triton_output = quant_bmm_248(bitwidth=bitwidth, x=x, qweight=qweights, qzero=qzeros, scales=scales, g_idx=g_idxs, bias=biases)
-            torch_output = native_bmm_lowprec(bitwidth=bitwidth, x=x, qweight=qweight, qzero=qzeros, scale=scales, g_idx=g_idxs, bias=biases)
+            triton_output = quant_bmm_248(bitwidth=bitwidth, x=x, qweight=qweights, qzero=qzeros, scales=scales, g_idx=g_idxs, bias=bias)
+            torch_output = native_bmm_lowprec(bitwidth=bitwidth, x=x, qweight=qweights, qzero=qzeros, scale=scales, g_idx=g_idxs, bias=bias)
             self.assertEqual(triton_output.shape, torch_output.shape)
             tt.assert_close(triton_output, torch_output, rtol=1e-3, atol=3e-5)
 

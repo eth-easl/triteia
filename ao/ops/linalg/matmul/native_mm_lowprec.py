@@ -13,7 +13,6 @@ def native_matmul_lowprec_248(
     assert x.dim() == 2, "x must be 2-dimensional"
     assert bitwidth in [2, 4, 8], "Only bitwidths of 2, 4, and 8 are supported"
     assert qweight.dtype == torch.int32, "qweight must be of type torch.int32"
-    print(qweight.shape)
     assert qweight.dim() == 2, "qweight must be 2-dimensional"
     
     infeatures = (
@@ -80,8 +79,8 @@ def native_bmm_lowprec(
     assert x.dim() == 3, "x must be 3-dimensional (bsz, M, K)"
     # loop over the batch dimension
     out = []
+    print(qzero.shape)
     for i in range(x.shape[0]):
-        print(qweight[0].shape)
         out.append(
             native_matmul_lowprec_248(
                 bitwidth,
