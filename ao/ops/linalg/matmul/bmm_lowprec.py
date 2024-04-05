@@ -147,7 +147,7 @@ class QuantLinearFunction(torch.autograd.Function):
         return output
 
 
-def quant_bmm_248(bitwidth, x, qweight, qzero, scales, g_idx, bias=None):
+def quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
     maxq = 2 ** bitwidth - 1
     with torch.cuda.device(x.device):
         bsz = x.shape[0]
@@ -165,7 +165,7 @@ def quant_bmm_248(bitwidth, x, qweight, qzero, scales, g_idx, bias=None):
             x,
             qweight,
             output,
-            scales,
+            scale,
             qzero,
             g_idx,
             x.shape[1],
@@ -179,12 +179,12 @@ def quant_bmm_248(bitwidth, x, qweight, qzero, scales, g_idx, bias=None):
             qweight.stride(2),
             output.stride(1),
             output.stride(2),
-            scales.stride(1),
+            scale.stride(1),
             qzero.stride(1),
             x.stride(0),
             qweight.stride(0),
             output.stride(0),
-            scales.stride(0),
+            scale.stride(0),
             qzero.stride(0),
             g_idx.stride(0),
         )

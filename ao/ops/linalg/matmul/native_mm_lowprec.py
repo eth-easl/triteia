@@ -79,7 +79,6 @@ def native_bmm_lowprec(
     assert x.dim() == 3, "x must be 3-dimensional (bsz, M, K)"
     # loop over the batch dimension
     out = []
-    print(qzero.shape)
     for i in range(x.shape[0]):
         out.append(
             native_matmul_lowprec_248(
