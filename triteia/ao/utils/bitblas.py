@@ -1,6 +1,6 @@
 from fractions import Fraction
-from ao.utils.dtypes import QUANTIZED_DTYPE
-from ao.ops.nn.linear_bitblas import Linear as BitblasLinear
+from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
+from triteia.ao.ops.nn.linear_bitblas import Linear as BitblasLinear
 
 
 def convert_to_bitblas(bitwidth, module_name, tensors):

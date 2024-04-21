@@ -29,10 +29,10 @@ def read_requirements(path):
 
 
 setup(
-    name="dstool",
-    version=read("dstool", "VERSION"),
-    description="Awesome dstool created by xzyaoi",
-    url="https://github.com/xzyaoi/dstool/",
+    name="triteia",
+    version=read("triteia", "VERSION"),
+    description="Useful Kernels",
+    url="https://github.com/eth-easl/triteia/",
     long_description=read("README.md"),
     long_description_content_type="text/markdown",
     author="xzyaoi",
