@@ -17,7 +17,7 @@ def main(args):
         new_tensors[module + ".zeros"] = zeros
         if bias is not None:
             new_tensors[module + ".bias"] = bias
-    save_file(tensors, args.output)
+    save_file(new_tensors, args.output)
 
 if __name__=="__main__":
     import argparse

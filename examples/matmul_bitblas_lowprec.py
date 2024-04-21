@@ -10,13 +10,12 @@ BIT_WIDTH = 4
 
 triton_weight = ".local/quantized.safetensors"
 bitblas_weight = ".local/bitblas.safetensors"
-
+prefix = "model.layers.0.self_attn.q_proj"
 tensors = {}
-with st.safe_open(bitblas_weight, framework="pt", device="cuda") as f:
+
+with st.safe_open(triton_weight, framework="pt", device="cuda") as f:
     for key in f.keys():
         tensors[key] = f.get_tensor(key)
-
-prefix = "model.layers.0.self_attn.q_proj"
 
 qweight = tensors[f"{prefix}.qweight"]
 qzeros = tensors[f"{prefix}.qzeros"]
@@ -31,8 +30,16 @@ output = native_matmul_lowprec_248(
 )
 print("native output")
 print(output)
+with st.safe_open(bitblas_weight, framework="pt", device="cuda") as f:
+    for key in f.keys():
+        tensors[key] = f.get_tensor(key)
+        
+qweight = tensors[f"{prefix}.qweight"]
+qzeros = tensors[f"{prefix}.zeros"]
+scales = tensors[f"{prefix}.scales"]
+        
 output_bitblas = bitblas_quant_bmm_248(
-    BIT_WIDTH, x, qweight, qzeros, scales, g_idx, 
+    BIT_WIDTH, x, qweight, qzeros, scales, 
 )
 print("bitblas output")
 print(output_bitblas)

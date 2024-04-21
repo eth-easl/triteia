@@ -6,13 +6,13 @@ import torch
 import torch.nn as nn
 import transformers
 
-from utils.mixin import TritonModuleMixin
+from ao.utils.mixin import TritonModuleMixin
 
 
 logger = getLogger(__name__)
 
 try:
-    from ops.linalg.matmul.matmul_lowprec import QuantLinearFunction, quant_matmul_248
+    from ao.ops.linalg.matmul.matmul_lowprec import QuantLinearFunction, quant_matmul_248
 except ImportError as e:
     triton_import_exception = e
 
