@@ -2,7 +2,7 @@ import torch
 import triton
 import triton.language as tl
 from torch.cuda.amp import custom_fwd
-import ao.utils.autotune as autotune
+import triteia.ao.utils.autotune as autotune
 
 
 @autotune.autotune(
@@ -148,7 +148,7 @@ class QuantLinearFunction(torch.autograd.Function):
 
 
 def quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
-    maxq = 2 ** bitwidth - 1
+    maxq = 2**bitwidth - 1
     with torch.cuda.device(x.device):
         bsz = x.shape[0]
         output = torch.empty(

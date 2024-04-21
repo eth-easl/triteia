@@ -39,19 +39,36 @@ class TestBMMLowPrec(unittest.TestCase):
         scale = self.tensors[f"{prefix}.scales"]
         g_idx = self.tensors[f"{prefix}.g_idx"]
         bitwidth = 4
-        
+
         bszs = [1, 2, 4, 8]
         for bsz in bszs:
             x = torch.randn((bsz, 512, 4096), device="cuda", dtype=torch.float16)
             bias = torch.randn((bsz, 512, 4096), device="cuda", dtype=torch.float16)
             qweights = qweight.repeat(bsz, 1, 1)
-            qzeros = qzero.repeat(bsz, 1,1)
-            scales = scale.repeat(bsz, 1,1)
+            qzeros = qzero.repeat(bsz, 1, 1)
+            scales = scale.repeat(bsz, 1, 1)
             g_idxs = g_idx.repeat(bsz, 1)
-            triton_output = quant_bmm_248(bitwidth=bitwidth, x=x, qweight=qweights, qzero=qzeros, scale=scales, g_idx=g_idxs, bias=bias)
-            torch_output = native_bmm_lowprec(bitwidth=bitwidth, x=x, qweight=qweights, qzero=qzeros, scale=scales, g_idx=g_idxs, bias=bias)
+            triton_output = quant_bmm_248(
+                bitwidth=bitwidth,
+                x=x,
+                qweight=qweights,
+                qzero=qzeros,
+                scale=scales,
+                g_idx=g_idxs,
+                bias=bias,
+            )
+            torch_output = native_bmm_lowprec(
+                bitwidth=bitwidth,
+                x=x,
+                qweight=qweights,
+                qzero=qzeros,
+                scale=scales,
+                g_idx=g_idxs,
+                bias=bias,
+            )
             self.assertEqual(triton_output.shape, torch_output.shape)
             tt.assert_close(triton_output, torch_output, rtol=1e-3, atol=3e-5)
+
 
 if __name__ == "__main__":
     unittest.main()

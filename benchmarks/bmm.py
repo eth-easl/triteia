@@ -2,6 +2,7 @@ import triton
 import torch
 from ao.ops import bmm
 
+
 @triton.testing.perf_report(
     triton.testing.Benchmark(
         x_names=["B"],

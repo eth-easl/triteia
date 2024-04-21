@@ -26,20 +26,29 @@ x = torch.rand((320, 4096), device="cuda", dtype=torch.float16)
 bias = torch.rand((320, 4096), device="cuda", dtype=torch.float16)
 
 output = native_matmul_lowprec_248(
-    BIT_WIDTH, x, qweight, qzeros, scales, g_idx, 
+    BIT_WIDTH,
+    x,
+    qweight,
+    qzeros,
+    scales,
+    g_idx,
 )
 print("native output")
 print(output)
 with st.safe_open(bitblas_weight, framework="pt", device="cuda") as f:
     for key in f.keys():
         tensors[key] = f.get_tensor(key)
-        
-qweight = tensors[f"{prefix}.qweight"]
-qzeros = tensors[f"{prefix}.zeros"]
-scales = tensors[f"{prefix}.scales"]
-        
+
+bitblas_qweight = tensors[f"{prefix}.qweight"]
+bitblas_qzeros = tensors[f"{prefix}.zeros"]
+bitblas_scales = tensors[f"{prefix}.scales"]
+
 output_bitblas = bitblas_quant_bmm_248(
-    BIT_WIDTH, x, qweight, qzeros, scales, 
+    BIT_WIDTH,
+    x,
+    qweight=bitblas_qweight,
+    qzero=bitblas_qzeros,
+    scale=bitblas_scales,
 )
 print("bitblas output")
 print(output_bitblas)

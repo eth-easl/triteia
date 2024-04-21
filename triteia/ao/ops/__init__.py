@@ -1,5 +1,5 @@
 import torch
-from ao.ops.linalg import (
+from triteia.ao.ops.linalg import (
     bmm,
     matmul,
     native_matmul_lowprec_248,
@@ -8,7 +8,7 @@ from ao.ops.linalg import (
     native_bmm_lowprec,
     quant_bmm_248,
 )
-from ao.ops.activations.silu import silu
+from triteia.ao.ops.activations.silu import silu
 
 
 def default_compile(fn):

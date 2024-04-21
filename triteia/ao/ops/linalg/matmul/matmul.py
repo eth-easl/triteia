@@ -1,7 +1,8 @@
 import torch
 import triton
 import triton.language as tl
-import ao.utils.autotune as autotune
+import triteia.ao.utils.autotune as autotune
+
 
 @autotune.autotune(
     key=["M", "N", "K"],

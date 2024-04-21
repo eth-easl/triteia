@@ -1,6 +1,7 @@
 import torch
 from typing import Optional
 
+
 def native_matmul_lowprec_248(
     bitwidth: int,
     x: torch.Tensor,
@@ -14,7 +15,7 @@ def native_matmul_lowprec_248(
     assert bitwidth in [2, 4, 8], "Only bitwidths of 2, 4, and 8 are supported"
     assert qweight.dtype == torch.int32, "qweight must be of type torch.int32"
     assert qweight.dim() == 2, "qweight must be 2-dimensional"
-    
+
     infeatures = (
         qweight.shape[0] // bitwidth * 32
     )  # qweight is stored in 32-bit integers (packed)
@@ -67,15 +68,16 @@ def native_matmul_lowprec_248(
     out = out + bias if bias is not None else out
     return out
 
+
 def native_bmm_lowprec(
-        bitwidth: int,
-        x: torch.Tensor,
-        qweight: torch.Tensor,
-        qzero: torch.Tensor,
-        scale: torch.Tensor,
-        g_idx: torch.Tensor,
-        bias: Optional[torch.Tensor] = None
-    ):
+    bitwidth: int,
+    x: torch.Tensor,
+    qweight: torch.Tensor,
+    qzero: torch.Tensor,
+    scale: torch.Tensor,
+    g_idx: torch.Tensor,
+    bias: Optional[torch.Tensor] = None,
+):
     assert x.dim() == 3, "x must be 3-dimensional (bsz, M, K)"
     # loop over the batch dimension
     out = []
@@ -88,7 +90,7 @@ def native_bmm_lowprec(
                 qzero[i],
                 scale[i],
                 g_idx[i],
-                bias[i] if bias is not None else None
+                bias[i] if bias is not None else None,
             )
         )
     return torch.stack(out)

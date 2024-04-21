@@ -1,7 +1,7 @@
 import torch
 import triton
 import triton.language as tl
-import ao.utils.autotune as autotune
+import triteia.ao.utils.autotune as autotune
 from torch.cuda.amp import custom_bwd, custom_fwd
 from typing import Optional
 
