@@ -1,6 +1,6 @@
 import torch
 import safetensors as st
-from ao.ops import native_matmul_lowprec_248, quant_matmul_248
+from triteia.ao.ops import native_matmul_lowprec_248, quant_matmul_248
 
 BIT_WIDTH = 4
 

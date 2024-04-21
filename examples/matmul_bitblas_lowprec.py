@@ -1,8 +1,8 @@
 import os
 import torch
 import safetensors as st
-from ao.ops import native_matmul_lowprec_248, quant_matmul_248
-from ao.ops.linalg.matmul.bitblas_matmul_lowprec import bitblas_quant_bmm_248
+from triteia.ao.ops import native_matmul_lowprec_248, quant_matmul_248
+from triteia.ao.ops.linalg.matmul.bitblas_matmul_lowprec import bitblas_quant_bmm_248
 
 os.environ["NUMEXPR_MAX_THREADS"] = "16"
 

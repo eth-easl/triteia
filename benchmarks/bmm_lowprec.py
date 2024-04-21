@@ -1,6 +1,6 @@
 import triton
 import torch
-from ao.ops import native_bmm_lowprec, quant_bmm_248
+from triteia.ao.ops import native_bmm_lowprec, quant_bmm_248
 import safetensors as st
 
 tensors = {}

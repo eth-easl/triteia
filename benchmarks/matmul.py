@@ -1,6 +1,6 @@
 import triton
 import torch
-from ao.ops import matmul
+from triteia.ao.ops import matmul
 
 
 @triton.testing.perf_report(

@@ -1,6 +1,6 @@
 import triton
 import torch
-from ao.ops import bmm
+from triteia.ao.ops import bmm
 
 
 @triton.testing.perf_report(
