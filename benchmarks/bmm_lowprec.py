@@ -25,7 +25,6 @@ def warmup():
         g_idxs = g_idx.repeat(bsz, 1)
         for i in range(1, 15):
             x_dim = int(128 * i)
-
             x = torch.randn((bsz, x_dim, 4096), device="cuda", dtype=torch.float16)
             bias = torch.randn((bsz, x_dim, 4096), device="cuda", dtype=torch.float16)
             native_bmm_lowprec(
@@ -96,7 +95,7 @@ def benchmark(B, provider):
             ),
             quantiles=quantiles,
         )
-    perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
+    perf = lambda ms: 2 * B * M * N * K * 1e-12 / (ms * 1e-3)
     return perf(ms), perf(max_ms), perf(min_ms)
 
 
