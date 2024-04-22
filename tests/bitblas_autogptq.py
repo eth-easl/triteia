@@ -82,6 +82,11 @@ torch.testing.assert_close(res_bitblas, res_cuda_old, rtol=1e-0, atol=1e-1)
 M = inp.shape[0]
 N = inp.shape[1]
 K = out_features
+
+print(f"M: {M}, N: {N}, K: {K}")
+
+assert bitblas_qweight.shape[1] * 2 == qweight.shape[0] * 8
+
 matmul_config = bitblas.MatmulConfig(
     M=M,
     N=N,
@@ -91,7 +96,7 @@ matmul_config = bitblas.MatmulConfig(
     accum_dtype="float16",
     out_dtype="float16",
     with_bias=False,
-    group_size=qweight.shape[0] * 8,
+    group_size=bitblas_qweight.shape[1] * 2,
     with_scaling=True,
     with_zeros=True,
     zeros_mode="quantized",
