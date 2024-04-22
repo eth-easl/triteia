@@ -1,6 +1,6 @@
 import torch
 import unittest
-from ao.ops import bmm, native_bmm_lowprec, quant_bmm_248
+from triteia.ao.ops import bmm, native_bmm_lowprec, quant_bmm_248
 import torch.testing as tt
 import safetensors as st
 
