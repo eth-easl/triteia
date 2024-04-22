@@ -1,4 +1,4 @@
-import bitblas
+import os
 import torch
 import safetensors as st
 from triteia.ao.ops.nn.linear_bitblas import Linear as BitblasLinear
@@ -6,6 +6,8 @@ from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
     QuantLinear as CudaOldQuantLinear,
 )
 from triteia.ao.ops.linalg.matmul.bitblas_matmul_lowprec import bitblas_quant_bmm_248
+
+os.environ['NUMEXPR_MAX_THREADS'] = "32"
 
 prefix = "model.layers.0.self_attn.q_proj"
 
@@ -67,7 +69,7 @@ bitblas_linear.qweight = bitblas_qweight
 bitblas_linear.zeros = bitblas_zeros
 bitblas_linear.scales = bitblas_scales
 # # Prepare input data
-m = 2048
+m = 11008
 inp = torch.rand(m, in_features, dtype=torch.float16, device="cuda")
 
 # Move models to CUDA for execution
@@ -81,6 +83,9 @@ with torch.no_grad():
     
 torch.testing.assert_close(res_bitblas, res_cuda_old, rtol=1e-0, atol=1e-1)
 assert bitblas_qweight.shape[1] * 2 == qweight.shape[0] * 8
+bitblas_qweight = torch.zeros_like(bitblas_qweight)
+bitblas_zeros = torch.zeros_like(bitblas_zeros)
+bitblas_scales = torch.ones_like(bitblas_scales)
 
 res_bitblas = bitblas_quant_bmm_248(
     bitwidth=bitwidth,

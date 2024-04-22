@@ -9,10 +9,15 @@ def bitblas_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx=None, bias=N
     M = x.shape[0]
     N = x.shape[1]
     K = qweight.shape[0]
-    print(f"signature: {bitwidth},{M},{N},{K}")
+
+    assert qweight.shape[1]*2 == x.shape[1], f"2*qweight.shape[1] != x.shape[1], got {qweight.shape[1]*2} != {x.shape[1]}"
+    assert qweight.shape[0] == qzero.shape[1]*2, f"qweight.shape[0] != qzero.shape[1], got {qweight.shape[0]} != {qzero.shape[1]}"
+    assert qzero.shape[1] * 2 == scale.shape[0], f"qzero.shape[1] * 2 != scale.shape[0], got {qzero.shape[1] * 2} != {scale.shape[0]}"
+
     if f'{bitwidth},{M},{N},{K}' in global_matmul_registry:
         matmul = global_matmul_registry[f'{bitwidth},{M},{N},{K}']
     else:
+        print(f"new signature: {bitwidth},{M},{N},{K}")
         matmul_config = bitblas.MatmulConfig(
             M=M,
             N=N,
