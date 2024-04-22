@@ -5,6 +5,7 @@ from triteia.ao.ops.nn.linear_bitblas import Linear as BitblasLinear
 from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
     QuantLinear as CudaOldQuantLinear,
 )
+from triteia.ao.ops.linalg.matmul.bitblas_matmul_lowprec import bitblas_quant_bmm_248
 
 prefix = "model.layers.0.self_attn.q_proj"
 
@@ -77,35 +78,19 @@ bitblas_linear = bitblas_linear.to("cuda")
 with torch.no_grad():
     res_cuda_old = cuda_old_linear(inp)
     res_bitblas = bitblas_linear(inp)
+    
 torch.testing.assert_close(res_bitblas, res_cuda_old, rtol=1e-0, atol=1e-1)
-
-M = inp.shape[0]
-N = inp.shape[1]
-K = out_features
-
-print(f"M: {M}, N: {N}, K: {K}")
-
 assert bitblas_qweight.shape[1] * 2 == qweight.shape[0] * 8
 
-matmul_config = bitblas.MatmulConfig(
-    M=M,
-    N=N,
-    K=K,
-    A_dtype="float16",
-    W_dtype="uint4",
-    accum_dtype="float16",
-    out_dtype="float16",
-    with_bias=False,
-    group_size=bitblas_qweight.shape[1] * 2,
-    with_scaling=True,
-    with_zeros=True,
-    zeros_mode="quantized",
+res_bitblas = bitblas_quant_bmm_248(
+    bitwidth=bitwidth,
+    x=inp,
+    qweight=bitblas_qweight,
+    qzero=bitblas_zeros,
+    scale=bitblas_scales
 )
-matmul = bitblas.Matmul(config=matmul_config)
+
 print("CudaOldQuantLinear output:", res_cuda_old)
 print("BitBLAS output:", res_bitblas)
-print(
-    "BitBLAS matmul output: ",
-    matmul(inp, bitblas_qweight, zeros=bitblas_zeros, scale=bitblas_scales),
-)
+
 # Verify the outputs are close within specified tolerances
