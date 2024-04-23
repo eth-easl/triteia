@@ -15,7 +15,6 @@ qzero = tensors[f"{prefix}.qzeros"]
 scale = tensors[f"{prefix}.scales"]
 g_idx = tensors[f"{prefix}.g_idx"]
 
-
 def warmup():
     print("Warming up...")
     for bsz in [1, 2, 4, 8]:
