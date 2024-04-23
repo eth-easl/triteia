@@ -15,9 +15,11 @@ qzero = tensors[f"{prefix}.qzeros"]
 scale = tensors[f"{prefix}.scales"]
 g_idx = tensors[f"{prefix}.g_idx"]
 
+BSZs = [1, 8, 16, 32, 64]
+
 def warmup():
     print("Warming up...")
-    for bsz in [1, 2, 4, 8]:
+    for bsz in BSZs:
         qweights = qweight.repeat(bsz, 1, 1)
         qzeros = qzero.repeat(bsz, 1, 1)
         scales = scale.repeat(bsz, 1, 1)
@@ -49,7 +51,7 @@ def warmup():
 @triton.testing.perf_report(
     triton.testing.Benchmark(
         x_names=["B"],
-        x_vals=[1, 2, 4, 8],
+        x_vals=BSZs,
         line_arg="provider",
         plot_name="bmm_lowprec",
         line_vals=["torch", "ao"],

@@ -149,48 +149,47 @@ class QuantLinearFunction(torch.autograd.Function):
 
 def quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
     maxq = 2**bitwidth - 1
-    with torch.cuda.device(x.device):
-        bsz = x.shape[0]
-        output = torch.empty(
-            (x.shape[0], x.shape[1], qweight.shape[2]),
-            device=x.device,
-            dtype=torch.float16,
-        )
-        grid = lambda META: (
-            bsz,
-            triton.cdiv(x.shape[1], META["BLOCK_SIZE_M"])
-            * triton.cdiv(qweight.shape[2], META["BLOCK_SIZE_N"]),
-        )
-        quant_bmm_248_kernel[grid](
-            x,
-            qweight,
-            output,
-            scale,
-            qzero,
-            g_idx,
-            x.shape[1],
-            qweight.shape[2],
-            x.shape[2],
-            bitwidth,
-            maxq,
-            x.stride(1),
-            x.stride(2),
-            qweight.stride(1),
-            qweight.stride(2),
-            output.stride(1),
-            output.stride(2),
-            scale.stride(1),
-            qzero.stride(1),
-            x.stride(0),
-            qweight.stride(0),
-            output.stride(0),
-            scale.stride(0),
-            qzero.stride(0),
-            g_idx.stride(0),
-        )
-        if bias is not None:
-            output += bias
-        return output
+    bsz = x.shape[0]
+    output = torch.empty(
+        (x.shape[0], x.shape[1], qweight.shape[2]),
+        device=x.device,
+        dtype=torch.float16,
+    )
+    grid = lambda META: (
+        bsz,
+        triton.cdiv(x.shape[1], META["BLOCK_SIZE_M"])
+        * triton.cdiv(qweight.shape[2], META["BLOCK_SIZE_N"]),
+    )
+    quant_bmm_248_kernel[grid](
+        x,
+        qweight,
+        output,
+        scale,
+        qzero,
+        g_idx,
+        x.shape[1],
+        qweight.shape[2],
+        x.shape[2],
+        bitwidth,
+        maxq,
+        x.stride(1),
+        x.stride(2),
+        qweight.stride(1),
+        qweight.stride(2),
+        output.stride(1),
+        output.stride(2),
+        scale.stride(1),
+        qzero.stride(1),
+        x.stride(0),
+        qweight.stride(0),
+        output.stride(0),
+        scale.stride(0),
+        qzero.stride(0),
+        g_idx.stride(0),
+    )
+    if bias is not None:
+        output += bias
+    return output
 
 
 class QuantLinearInferenceOnlyFunction(torch.autograd.Function):

@@ -15,12 +15,13 @@ def default_compile(fn):
     return torch.compile(
         fn,
         mode="reduce-overhead",
+        fullgraph=True,
         dynamic=True,
     )
 
-
 # bmm = default_compile(bmm)
 # matmul = default_compile(matmul)
+# quant_bmm_248 = default_compile(quant_bmm_248)
 
 __all__ = [
     "bmm",
