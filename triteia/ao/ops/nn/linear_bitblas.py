@@ -247,7 +247,8 @@ class Linear(nn.Module):
             else:
                 print("BitBLAS Operator created.")
         else:
-            print("BitBLAS Operator found in global_operator_cache.")
+            # print("BitBLAS Operator found in global_operator_cache.")
+            pass
         return bitblas_matmul
 
     def warmup(self, topk=20):
