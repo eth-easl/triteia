@@ -4,6 +4,8 @@ import triton.language as tl
 from torch.cuda.amp import custom_fwd
 import triteia.ao.utils.autotune as autotune
 from .matmul_lowprec import quant_matmul_248
+from triteia.ao.ops.linalg.matmul.bitblas_matmul_lowprec import bitblas_quant_bmm_248
+
 
 @autotune.autotune(
     key=["M", "N", "K"],
@@ -163,7 +165,7 @@ def quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
         triton.cdiv(x.shape[1], META["BLOCK_SIZE_M"])
         * triton.cdiv(qweight.shape[2], META["BLOCK_SIZE_N"]),
     )
-    quant_bmm_248_kernel[grid](
+    src = quant_bmm_248_kernel[grid](
         x,
         qweight,
         output,
@@ -190,6 +192,9 @@ def quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
         qzero.stride(0),
         g_idx.stride(0),
     )
+    src = src.asm['ttir']
+    with open("quant_bmm_248_kernel.ttir", "w") as f:
+        f.write(src)
     if bias is not None:
         output += bias
     return output
@@ -211,6 +216,19 @@ def loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
     )
     for i in range(bsz):
         output[i] = quant_matmul_248(bitwidth, x[i], qweight[i], qzero[i], scale[i], g_idx[i], None)
+    if bias is not None:
+        output += bias
+    return output
+
+def bitblas_loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
+    bsz = x.shape[0]
+    output = torch.empty(
+        (x.shape[0], x.shape[1], qweight.shape[2]),
+        device=x.device,
+        dtype=torch.float16,
+    )
+    for i in range(bsz):
+        output[i] = bitblas_quant_bmm_248(bitwidth, x[i], qweight[i], qzero[i], scale[i], g_idx[i], None)
     if bias is not None:
         output += bias
     return output
