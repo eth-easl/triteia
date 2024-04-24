@@ -8,21 +8,17 @@ from fractions import Fraction
 from torch.cuda.amp import custom_bwd, custom_fwd
 try:
     import bitblas
-    from bitblas.ops.matmul_dequantize import (
-        MatmulWeightOnlyDequantizeConfig,
-    )
     from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
 except ImportError:
     print("BitBlas not installed")
     
-import operator
-from triteia.ao.utils.dtypes import BITBLAS_DTYPES, BITBLAS_STORAGE_DTYPE
+from triteia.ao.utils.dtypes import BITBLAS_DTYPES
 from triteia.ao.utils.bitblas_utils import get_or_create_bitblas_operator
-from functools import reduce
 
 ##
 ## Triton kernel
 ## 
+
 @autotune.autotune(
     key=["M", "N", "K"],
     nearest_power_of_two=True,

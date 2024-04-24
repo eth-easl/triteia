@@ -1,7 +1,6 @@
 from fractions import Fraction
-from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
-from triteia.ao.ops.nn.linear_bitblas import Linear as BitblasLinear
 import bitblas
+from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
 from bitblas.cache.operator import global_operator_cache
 from bitblas import auto_detect_nvidia_target
 
@@ -23,6 +22,7 @@ def convert_to_bitblas(bitwidth, module_name, tensors):
     outfeatures = qweight.shape[1]
     group_size = infeatures
 
+    from triteia.ao.ops.nn.linear_bitblas import Linear as BitblasLinear
     bitblas_linear = BitblasLinear(
         in_features=infeatures,
         out_features=outfeatures,

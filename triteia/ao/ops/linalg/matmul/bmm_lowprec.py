@@ -223,12 +223,20 @@ def loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
 def bitblas_loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
     bsz = x.shape[0]
     output = torch.empty(
-        (x.shape[0], x.shape[1], qweight.shape[2]),
+        (x.shape[0], x.shape[1], qweight.shape[1]),
         device=x.device,
         dtype=torch.float16,
     )
     for i in range(bsz):
-        output[i] = bitblas_quant_bmm_248(bitwidth, x[i], qweight[i], qzero[i], scale[i], g_idx[i], None)
+        output[i] = bitblas_quant_bmm_248(
+            bitwidth, 
+            x[i], 
+            qweight[i], 
+            qzero[i], 
+            scale[i], 
+            g_idx[i],
+            None
+        )
     if bias is not None:
         output += bias
     return output

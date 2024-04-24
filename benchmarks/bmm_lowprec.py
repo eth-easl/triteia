@@ -1,8 +1,11 @@
-import triton
+import os
 import torch
+import triton
 from triteia.ao.ops import native_bmm_lowprec
-from triteia.ao.ops.linalg.matmul.bmm_lowprec import quant_bmm_248, loop_quant_bmm_248
+from triteia.ao.ops.linalg.matmul.bmm_lowprec import quant_bmm_248, loop_quant_bmm_248, bitblas_loop_quant_bmm_248
 import safetensors as st
+
+os.environ["NUMEXPR_MAX_THREADS"] = "16"
 
 BITWIDTH = 4
 BSZs = [1, 8, 16, 32, 64]
@@ -28,40 +31,54 @@ def warmup():
     print("Warming up...")
     for bsz in BSZs:
         qweights = qweight.repeat(bsz, 1, 1)
+        qweights_bitblas = qweight_bitblas.repeat(bsz, 1, 1)
+        
         qzeros = qzero.repeat(bsz, 1, 1)
+        qzeros_bitblas = qzero_bitblas.repeat(bsz, 1, 1)
+        
         scales = scale.repeat(bsz, 1, 1)
+        scales_bitblas = scale_bitblas.repeat(bsz, 1, 1)
         g_idxs = g_idx.repeat(bsz, 1)
-        for i in range(1, 15):
-            x_dim = 4096
-            x = torch.randn((bsz, x_dim, 4096), device="cuda", dtype=torch.float16)
-            bias = torch.randn((bsz, x_dim, 4096), device="cuda", dtype=torch.float16)
-            native_bmm_lowprec(
-                BITWIDTH,
-                x,
-                qweight=qweights,
-                qzero=qzeros,
-                scale=scales,
-                g_idx=g_idxs,
-                bias=bias,
-            )
-            quant_bmm_248(
-                BITWIDTH,
-                x,
-                qweight=qweights,
-                qzero=qzeros,
-                scale=scales,
-                g_idx=g_idxs,
-                bias=bias,
-            )
-            loop_quant_bmm_248(
-                BITWIDTH,
-                x,
-                qweight=qweights,
-                qzero=qzeros,
-                scale=scales,
-                g_idx=g_idxs,
-                bias=bias,
-            )
+        
+        x_dim = 4096
+        x = torch.randn((bsz, x_dim, 4096), device="cuda", dtype=torch.float16)
+        bias = torch.randn((bsz, x_dim, 4096), device="cuda", dtype=torch.float16)
+        native_bmm_lowprec(
+            BITWIDTH,
+            x,
+            qweight=qweights,
+            qzero=qzeros,
+            scale=scales,
+            g_idx=g_idxs,
+            bias=bias,
+        )
+        quant_bmm_248(
+            BITWIDTH,
+            x,
+            qweight=qweights,
+            qzero=qzeros,
+            scale=scales,
+            g_idx=g_idxs,
+            bias=bias,
+        )
+        loop_quant_bmm_248(
+            BITWIDTH,
+            x,
+            qweight=qweights,
+            qzero=qzeros,
+            scale=scales,
+            g_idx=g_idxs,
+            bias=bias,
+        )
+        bitblas_loop_quant_bmm_248(
+            BITWIDTH,
+            x,
+            qweight=qweights_bitblas,
+            qzero=qzeros_bitblas,
+            scale=scales_bitblas,
+            g_idx=g_idxs,
+            bias=bias,
+        )
 
 @triton.testing.perf_report(
     triton.testing.Benchmark(
@@ -69,8 +86,8 @@ def warmup():
         x_vals=BSZs,
         line_arg="provider",
         plot_name="bmm_lowprec",
-        line_vals=["torch", "ao", "loop"],
-        line_names=["torch", "ao", "loop"],
+        line_vals=["torch", "ao", "loop", "bitblas"],
+        line_names=["torch", "ao", "loop", "bitblas"],
         args={},
     )
 )
@@ -82,9 +99,13 @@ def benchmark(B, provider):
     bias = torch.randn((B, M, N), device="cuda", dtype=torch.float16)
     quantiles = [0.2, 0.5, 0.75]
     qweights = qweight.repeat(B, 1, 1)
+    qweights_bitblas = qweight_bitblas.repeat(B, 1, 1)
     qzeros = qzero.repeat(B, 1, 1)
+    qzeros_bitblas = qzero_bitblas.repeat(B, 1, 1)
     scales = scale.repeat(B, 1, 1)
+    scales_bitblas = scale_bitblas.repeat(B, 1, 1)
     g_idxs = g_idx.repeat(B, 1)
+    
     if provider == "torch":
         ms, min_ms, max_ms = triton.testing.do_bench(
             lambda: native_bmm_lowprec(
@@ -120,6 +141,19 @@ def benchmark(B, provider):
                 qzero=qzeros,
                 scale=scales,
                 g_idx=g_idxs,
+                bias=bias,
+            ),
+            quantiles=quantiles,
+        )
+    if provider == "bitblas":
+        ms, min_ms, max_ms = triton.testing.do_bench(
+            lambda: bitblas_loop_quant_bmm_248(
+                BITWIDTH,
+                x,
+                qweight=qweights_bitblas,
+                qzero=qzeros_bitblas,
+                scale=scales_bitblas,
+                g_idx=g_idx,
                 bias=bias,
             ),
             quantiles=quantiles,

@@ -1,6 +1,6 @@
 import safetensors as st
-from triteia.ao.utils.bitblas_utils import convert_to_bitblas
 from safetensors.torch import save_file
+from triteia.ao.utils.bitblas_utils import convert_to_bitblas
 
 def main(args):
     print(args)
