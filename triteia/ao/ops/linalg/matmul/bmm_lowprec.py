@@ -6,7 +6,6 @@ import triteia.ao.utils.autotune as autotune
 from .matmul_lowprec import quant_matmul_248
 from triteia.ao.ops.linalg.matmul.bitblas_matmul_lowprec import bitblas_quant_bmm_248
 
-
 @autotune.autotune(
     key=["M", "N", "K"],
     nearest_power_of_two=True,
@@ -227,16 +226,23 @@ def bitblas_loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=N
         device=x.device,
         dtype=torch.float16,
     )
+    print(f"output.shape: {output.shape}")
+    print(f"x.shape: {x.shape}")
+    print(f"qweight.shape: {qweight.shape}")
+    print(f"qzero.shape: {qzero.shape}")
+    print(f"scale.shape: {scale.shape}")
     for i in range(bsz):
-        output[i] = bitblas_quant_bmm_248(
+        out = bitblas_quant_bmm_248(
             bitwidth, 
             x[i], 
             qweight[i], 
             qzero[i], 
             scale[i], 
-            g_idx[i],
+            None,
             None
         )
+        print(f"out.shape: {out.shape}")
+        output[i] = out
     if bias is not None:
         output += bias
     return output

@@ -6,7 +6,9 @@ def main(args):
     print(args)
     tensors = {}
     new_tensors = {}
+    remaining_keys = []
     with st.safe_open(args.ckpt, framework="pt") as f:
+        remaining_keys = list(f.keys())
         for key in f.keys():
             tensors[key] = f.get_tensor(key)
     quantized_modules = [
@@ -21,6 +23,12 @@ def main(args):
         new_tensors[module + ".zeros"] = zeros
         if bias is not None:
             new_tensors[module + ".bias"] = bias
+        remaining_keys.remove(module + ".qweight")
+        remaining_keys.remove(module + ".qzeros")
+        remaining_keys.remove(module + ".scales")
+        remaining_keys.remove(module + ".g_idx")
+        
+    new_tensors.update({key: tensors[key] for key in remaining_keys})        
     save_file(new_tensors, args.output)
 
 if __name__ == "__main__":
