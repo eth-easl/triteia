@@ -3,7 +3,7 @@ import triton
 import triton.language as tl
 from torch.cuda.amp import custom_fwd
 import triteia.ao.utils.autotune as autotune
-
+from .matmul_lowprec import quant_matmul_248
 
 @autotune.autotune(
     key=["M", "N", "K"],
@@ -59,9 +59,11 @@ def quant_bmm_248_kernel(
 
     pid_b = tl.program_id(axis=0)
     pid = tl.program_id(axis=1)
+    
     num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
     num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
     num_pid_k = tl.cdiv(K, BLOCK_SIZE_K)
+    
     num_pid_in_group = GROUP_SIZE_M * num_pid_n
     group_id = pid // num_pid_in_group
     first_pid_m = group_id * GROUP_SIZE_M
@@ -98,6 +100,7 @@ def quant_bmm_248_kernel(
 
     shifter = (offs_k % infearure_per_bits) * bits
     zeros_shifter = (offs_bn % infearure_per_bits) * bits
+    
     accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
 
     for k in range(0, num_pid_k):
@@ -198,3 +201,16 @@ class QuantLinearInferenceOnlyFunction(torch.autograd.Function):
     def forward(ctx, input, qweight, scales, qzero, g_idx, bits, maxq):
         output = quant_bmm_248(input, qweight, scales, qzero, g_idx, bits, maxq)
         return output
+
+def loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
+    bsz = x.shape[0]
+    output = torch.empty(
+        (x.shape[0], x.shape[1], qweight.shape[2]),
+        device=x.device,
+        dtype=torch.float16,
+    )
+    for i in range(bsz):
+        output[i] = quant_matmul_248(bitwidth, x[i], qweight[i], qzero[i], scale[i], g_idx[i], None)
+    if bias is not None:
+        output += bias
+    return output

@@ -1,6 +1,7 @@
 import torch
 import unittest
 from triteia.ao.ops import bmm, native_bmm_lowprec, quant_bmm_248
+from triteia.ao.ops.linalg.matmul.bmm_lowprec import loop_quant_bmm_248
 import torch.testing as tt
 import safetensors as st
 
@@ -66,7 +67,18 @@ class TestBMMLowPrec(unittest.TestCase):
                 g_idx=g_idxs,
                 bias=bias,
             )
+            loop_output = loop_quant_bmm_248(
+                bitwidth=bitwidth,
+                x=x,
+                qweight=qweights,
+                qzero=qzeros,
+                scale=scales,
+                g_idx=g_idxs,
+                bias=bias,
+            )
             self.assertEqual(triton_output.shape, torch_output.shape)
+            self.assertEqual(triton_output.shape, loop_output.shape)
+            tt.assert_close(loop_output, torch_output, rtol=1e-3, atol=3e-5)
             tt.assert_close(triton_output, torch_output, rtol=1e-3, atol=3e-5)
 
 

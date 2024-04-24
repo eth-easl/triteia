@@ -1,6 +1,8 @@
 import torch
 
+from triteia.ao.ops import native_bmm_lowprec
 from triteia.ao.ops.linalg.matmul.bmm_lowprec_new import quant_bmm_248
+
 import safetensors as st
 
 tensors = {}
@@ -15,26 +17,6 @@ qzero = tensors[f"{prefix}.qzeros"]
 scale = tensors[f"{prefix}.scales"]
 g_idx = tensors[f"{prefix}.g_idx"]
 
-def warmup():
-    for bsz in BSZs:
-        qweights = qweight.repeat(bsz, 1, 1)
-        qzeros = qzero.repeat(bsz, 1, 1)
-        scales = scale.repeat(bsz, 1, 1)
-        g_idxs = g_idx.repeat(bsz, 1)
-        for i in range(1, 15):
-            x_dim = int(128 * i)
-            x = torch.randn((bsz, x_dim, 4096), device="cuda", dtype=torch.float16)
-            bias = torch.randn((bsz, x_dim, 4096), device="cuda", dtype=torch.float16)
-            quant_bmm_248(
-                BITWIDTH,
-                x,
-                qweight=qweights,
-                qzero=qzeros,
-                scale=scales,
-                g_idx=g_idxs,
-                bias=bias,
-            )
-warmup()
 bsz = 64
 qweights = qweight.repeat(bsz, 1, 1)
 qzeros = qzero.repeat(bsz, 1, 1)

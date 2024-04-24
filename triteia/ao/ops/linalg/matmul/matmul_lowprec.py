@@ -1,11 +1,22 @@
+import ctypes
 import torch
 import triton
+from typing import Optional
 import triton.language as tl
 import triteia.ao.utils.autotune as autotune
+from fractions import Fraction
 from torch.cuda.amp import custom_bwd, custom_fwd
-from typing import Optional
+from bitblas.ops.matmul_dequantize import (
+    MatmulWeightOnlyDequantizeConfig,
+)
+import operator
+from triteia.ao.utils.dtypes import BITBLAS_DTYPES, BITBLAS_STORAGE_DTYPE
+from triteia.ao.utils.bitblas_utils import get_or_create_bitblas_operator
+from functools import reduce
 
-
+##
+## Triton kernel
+## 
 @autotune.autotune(
     key=["M", "N", "K"],
     nearest_power_of_two=True,
@@ -160,6 +171,7 @@ def transpose_quant_matmul_248_kernel(
     num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
     num_pid_k = tl.cdiv(K, BLOCK_SIZE_K)
     num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
+    
     num_pid_in_group = GROUP_SIZE_M * num_pid_k
     group_id = pid // num_pid_in_group
     first_pid_m = group_id * GROUP_SIZE_M
@@ -325,7 +337,6 @@ def quant_matmul_inference_only_248(input, qweight, scales, qzero, g_idx, bits, 
         )
         return output
 
-
 class QuantLinearFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
@@ -355,3 +366,57 @@ class QuantLinearInferenceOnlyFunction(torch.autograd.Function):
     def forward(ctx, input, qweight, scales, qzero, g_idx, bits, maxq):
         output = quant_matmul_248(input, qweight, scales, qzero, g_idx, bits, maxq)
         return output
+
+##
+## Bitblas
+## 
+
+BITBLAS_PROPAGATE_WEIGHTS = False
+BITBLAS_DATABASE_PATH = ".local/bitblas_database"
+OPT_FEATURES = [1, 16, 32, 64, 128, 256, 512]
+
+def quant_matmul_248_bitblas(
+    bitwidth, x, qweight, qzero, scale, g_idx, bias: Optional[torch.Tensor] = None
+):
+    pack_factor = Fraction(bitwidth, 8)
+    bitblas_dtype = BITBLAS_DTYPES[torch.float16]
+    outfeatures = qweight.shape[0]
+    infeatures = qweight.shape[1] // pack_factor
+    matmul_config = MatmulWeightOnlyDequantizeConfig(
+        M = OPT_FEATURES,
+        N = outfeatures,
+        K = infeatures,
+        in_dtype=bitblas_dtype,
+        out_dtype=bitblas_dtype,
+        accum_dtype="int32" if bitblas_dtype == "int8" else bitblas_dtype,
+        bit=bitwidth,
+        storage_dtype=BITBLAS_STORAGE_DTYPE,
+        source_format="uint",
+        with_scaling=True,
+        with_zeros=True,
+        group_size=infeatures,
+        fast_decoding=True,
+        with_bias=bias is not None,
+        propagate_a=False,
+        propagate_b=BITBLAS_PROPAGATE_WEIGHTS,
+        layout="nt",
+        zeros_mode="quantized",
+    )
+    bitblas_matmul = get_or_create_bitblas_operator(
+        config=matmul_config, enable_tuning=True
+    )
+    if x.dtype != torch.float16:
+        x = x.half()
+    output = torch.empty(
+        x.shape[:-1] + (qweight.shape[0],),
+        dtype=x.dtype, device=x.device
+    )
+    print(f"qweight shape: {qweight.shape}")
+    print(f"qzero shape: {qzero.shape}")
+    print(f"scale shape: {scale.shape}")
+    print(f"x shape: {x.shape}")
+    print(f"bitblas output shape: {output.shape}")
+    bitblas_matmul(x, qweight, scale, qzero, bias, output)
+    return output
+
+     

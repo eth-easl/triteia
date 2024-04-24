@@ -1,6 +1,7 @@
 import triton
 import torch
-from triteia.ao.ops import native_bmm_lowprec, quant_bmm_248
+from triteia.ao.ops import native_bmm_lowprec
+from triteia.ao.ops.linalg.matmul.bmm_lowprec import quant_bmm_248, loop_quant_bmm_248
 import safetensors as st
 
 tensors = {}
@@ -46,7 +47,15 @@ def warmup():
                 g_idx=g_idxs,
                 bias=bias,
             )
-
+            loop_quant_bmm_248(
+                BITWIDTH,
+                x,
+                qweight=qweights,
+                qzero=qzeros,
+                scale=scales,
+                g_idx=g_idxs,
+                bias=bias,
+            )
 
 @triton.testing.perf_report(
     triton.testing.Benchmark(
@@ -54,8 +63,8 @@ def warmup():
         x_vals=BSZs,
         line_arg="provider",
         plot_name="bmm_lowprec",
-        line_vals=["torch", "ao"],
-        line_names=["torch", "ao"],
+        line_vals=["torch", "ao", "loop"],
+        line_names=["torch", "ao", "loop"],
         args={},
     )
 )
@@ -86,6 +95,19 @@ def benchmark(B, provider):
     if provider == "ao":
         ms, min_ms, max_ms = triton.testing.do_bench(
             lambda: quant_bmm_248(
+                BITWIDTH,
+                x,
+                qweight=qweights,
+                qzero=qzeros,
+                scale=scales,
+                g_idx=g_idxs,
+                bias=bias,
+            ),
+            quantiles=quantiles,
+        )
+    if provider == "loop":
+        ms, min_ms, max_ms = triton.testing.do_bench(
+            lambda: loop_quant_bmm_248(
                 BITWIDTH,
                 x,
                 qweight=qweights,

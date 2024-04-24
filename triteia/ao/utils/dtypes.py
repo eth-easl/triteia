@@ -7,3 +7,9 @@ QUANTIZED_DTYPE = {
     4: "uint4",
     8: "uint8",
 }
+BITBLAS_DTYPES = {
+    torch.float32: "float32",
+    torch.float16: "float16",
+    torch.half: "float16",
+    torch.int8: "int8",
+}

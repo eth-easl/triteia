@@ -1,5 +1,5 @@
 import safetensors as st
-from triteia.ao.utils.bitblas import convert_to_bitblas
+from triteia.ao.utils.bitblas_utils import convert_to_bitblas
 from safetensors.torch import save_file
 
 def main(args):
@@ -22,7 +22,6 @@ def main(args):
         if bias is not None:
             new_tensors[module + ".bias"] = bias
     save_file(new_tensors, args.output)
-
 
 if __name__ == "__main__":
     import argparse

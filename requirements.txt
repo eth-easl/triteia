@@ -1,1 +1,23 @@
-bitblas @ https://github.com/microsoft/BitBLAS/releases/download/v0.0.1/bitblas-0.0.1dev0+ubuntu.20.4.cu120-py3-none-any.whl
+bitblas @ https://github.com/microsoft/BitBLAS/releases/download/v0.0.1dev/bitblas-0.0.1.dev2+ubuntu.20.4.cu120-py3-none-any.whl
+thefuzz
+cffi
+cpplint
+Cython
+decorator
+docutils
+dtlib
+numpy>=1.23.5
+pytest>=6.2.4
+pytest_xdist>=2.2.1
+packaging>=21.0
+PyYAML
+tqdm>=4.62.3
+typing_extensions>=4.10.0
+requests
+attrs
+cloudpickle
+ml_dtypes
+psutil
+scipy
+tornado
+torch
