@@ -227,10 +227,6 @@ def bitblas_loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=N
         dtype=torch.float16,
     )
     for i in range(bsz):
-        print(f"x[i].shape: {x[i].shape}")
-        print(f"qweight[i].shape: {qweight[i].shape}")
-        print(f"qzero[i].shape: {qzero[i].shape}")
-        print(f"scale[i].shape: {scale[i].shape}")
         output[i] = bitblas_quant_mm_248(
             bitwidth, 
             x[i], 

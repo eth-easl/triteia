@@ -407,11 +407,6 @@ def quant_matmul_248_bitblas(
         x.shape[:-1] + (qweight.shape[0],),
         dtype=x.dtype, device=x.device
     )
-    print(f"qweight shape: {qweight.shape}")
-    print(f"qzero shape: {qzero.shape}")
-    print(f"scale shape: {scale.shape}")
-    print(f"x shape: {x.shape}")
-    print(f"bitblas output shape: {output.shape}")
     if bias is not None:
         bitblas_matmul(x, qweight, scale, qzero, output)
     else:
