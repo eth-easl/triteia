@@ -46,7 +46,7 @@ class TestMatmulLowPrec(unittest.TestCase):
         g_idx = self.tensors[f"{prefix}.g_idx"]
 
         qweight_bitblas = self.bitblas_tensors[f"{prefix}.qweight"]
-        qzeros_bitblas = self.bitblas_tensors[f"{prefix}.zeros"]
+        qzeros_bitblas = self.bitblas_tensors[f"{prefix}.zeros"].T
         scales_bitblas = self.bitblas_tensors[f"{prefix}.scales"]
         x = torch.rand((1, 4096), device="cuda", dtype=torch.float16)
         bias = torch.zeros((1, 4096), device="cuda", dtype=torch.float16)
