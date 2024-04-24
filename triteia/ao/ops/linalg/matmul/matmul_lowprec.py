@@ -6,9 +6,15 @@ import triton.language as tl
 import triteia.ao.utils.autotune as autotune
 from fractions import Fraction
 from torch.cuda.amp import custom_bwd, custom_fwd
-from bitblas.ops.matmul_dequantize import (
-    MatmulWeightOnlyDequantizeConfig,
-)
+try:
+    import bitblas
+    from bitblas.ops.matmul_dequantize import (
+        MatmulWeightOnlyDequantizeConfig,
+    )
+    from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
+except ImportError:
+    print("BitBlas not installed")
+    
 import operator
 from triteia.ao.utils.dtypes import BITBLAS_DTYPES, BITBLAS_STORAGE_DTYPE
 from triteia.ao.utils.bitblas_utils import get_or_create_bitblas_operator
@@ -382,26 +388,20 @@ def quant_matmul_248_bitblas(
     bitblas_dtype = BITBLAS_DTYPES[torch.float16]
     outfeatures = qweight.shape[0]
     infeatures = qweight.shape[1] // pack_factor
-    matmul_config = MatmulWeightOnlyDequantizeConfig(
-        M = OPT_FEATURES,
-        N = outfeatures,
-        K = infeatures,
-        in_dtype=bitblas_dtype,
-        out_dtype=bitblas_dtype,
-        accum_dtype="int32" if bitblas_dtype == "int8" else bitblas_dtype,
-        bit=bitwidth,
-        storage_dtype=BITBLAS_STORAGE_DTYPE,
-        source_format="uint",
-        with_scaling=True,
-        with_zeros=True,
-        group_size=infeatures,
-        fast_decoding=True,
-        with_bias=bias is not None,
-        propagate_a=False,
-        propagate_b=BITBLAS_PROPAGATE_WEIGHTS,
-        layout="nt",
-        zeros_mode="quantized",
-    )
+    matmul_config = bitblas.MatmulConfig(
+            M=x.shape[0],
+            N=x.shape[1],
+            K=qweight.shape[0],
+            A_dtype="float16",
+            W_dtype=QUANTIZED_DTYPE[bitwidth],
+            accum_dtype="float16",
+            out_dtype="float16",
+            with_bias=False,
+            group_size=qweight.shape[1] * 2,
+            with_scaling=True,
+            with_zeros=True,
+            zeros_mode="quantized",
+        )
     bitblas_matmul = get_or_create_bitblas_operator(
         config=matmul_config, enable_tuning=True
     )
@@ -416,7 +416,10 @@ def quant_matmul_248_bitblas(
     print(f"scale shape: {scale.shape}")
     print(f"x shape: {x.shape}")
     print(f"bitblas output shape: {output.shape}")
-    bitblas_matmul(x, qweight, scale, qzero, bias, output)
+    if bias is not None:
+        bitblas_matmul(x, qweight, scale, qzero, output)
+    else:
+        bitblas_matmul(x, qweight, scale, qzero, bias, output)
     return output
 
      

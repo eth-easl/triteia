@@ -1,10 +1,8 @@
 from fractions import Fraction
 from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
 from triteia.ao.ops.nn.linear_bitblas import Linear as BitblasLinear
-from bitblas.cache.operator import global_operator_cache, load_global_ops_cache
-from bitblas.ops.matmul_dequantize import (
-    MatmulWeightOnlyDequantize,
-)
+import bitblas
+from bitblas.cache.operator import global_operator_cache
 from bitblas import auto_detect_nvidia_target
 
 BITBLAS_TARGET = auto_detect_nvidia_target()
@@ -46,12 +44,12 @@ def convert_to_bitblas(bitwidth, module_name, tensors):
         bitblas_linear.bias,
     )
 
-def get_or_create_bitblas_operator(config, enable_tuning):
+def get_or_create_bitblas_operator(config, enable_tuning=True):
     print(config)
     bitblas_matmul = global_operator_cache.get(config)
     if bitblas_matmul is None:
         print("BitBLAS Operator not found in global_operator_cache, creating...")
-        bitblas_matmul = MatmulWeightOnlyDequantize(config, target=BITBLAS_TARGET)
+        bitblas_matmul = bitblas.Matmul(config=config, target=BITBLAS_TARGET)
         if enable_tuning:
             bitblas_matmul.hardware_aware_finetune(topk=20)
             global_operator_cache.add(config, bitblas_matmul)

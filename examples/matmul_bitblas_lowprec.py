@@ -22,8 +22,8 @@ qzeros = tensors[f"{prefix}.qzeros"]
 scales = tensors[f"{prefix}.scales"]
 g_idx = tensors[f"{prefix}.g_idx"]
 
-x = torch.rand((320, 4096), device="cuda", dtype=torch.float16)
-bias = torch.rand((320, 4096), device="cuda", dtype=torch.float16)
+x = torch.rand((8192, 4096), device="cuda", dtype=torch.float16)
+bias = torch.rand((8192, 4096), device="cuda", dtype=torch.float16)
 
 output = native_matmul_lowprec_248(
     BIT_WIDTH,
