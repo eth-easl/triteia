@@ -1,11 +1,12 @@
-from fractions import Fraction
+import os
 import bitblas
+from fractions import Fraction
 from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
 from bitblas.cache.operator import global_operator_cache
 from bitblas import auto_detect_nvidia_target
 
 BITBLAS_TARGET = auto_detect_nvidia_target()
-BITBLAS_DATABASE_PATH = "~/.cache/.bitblas/bitblas_database"
+BITBLAS_DATABASE_PATH = os.path.join(os.path.expanduser("~"), ".cache", ".bitblas")
 global_operator_cache.load_from_database(BITBLAS_DATABASE_PATH, BITBLAS_TARGET)
 
 def convert_to_bitblas(bitwidth, module_name, tensors):

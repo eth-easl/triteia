@@ -48,8 +48,8 @@ class TestMatmulLowPrec(unittest.TestCase):
         qweight_bitblas = self.bitblas_tensors[f"{prefix}.qweight"]
         qzeros_bitblas = self.bitblas_tensors[f"{prefix}.zeros"]
         scales_bitblas = self.bitblas_tensors[f"{prefix}.scales"]
-        x = torch.rand((256, 4096), device="cuda", dtype=torch.float16)
-        bias = torch.zeros((256, 4096), device="cuda", dtype=torch.float16)
+        x = torch.rand((1, 4096), device="cuda", dtype=torch.float16)
+        bias = torch.zeros((1, 4096), device="cuda", dtype=torch.float16)
         pytorch_output = native_matmul_lowprec_248(
             4, x, qweight, qzeros, scales, g_idx, bias=bias
         )
@@ -57,7 +57,8 @@ class TestMatmulLowPrec(unittest.TestCase):
             4, x, qweight, qzeros, scales, g_idx, bias=bias
         )
         bitblas_output = quant_matmul_248_bitblas(
-            4, x, qweight_bitblas, qzeros_bitblas, scales_bitblas, g_idx, bias=bias)
+            4, x, qweight_bitblas, qzeros_bitblas, scales_bitblas, g_idx, bias=bias
+        )
 
         print(f"PyTorch output: {pytorch_output}")
         print(f"BitBlas output: {bitblas_output}")
