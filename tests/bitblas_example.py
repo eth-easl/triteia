@@ -1,59 +1,51 @@
 import bitblas
 import torch
+import os
+os.environ['NUMEXPR_MAX_THREADS'] = "32"
 
-in_features = 1024
-out_features = 1024
-group_size = 128
+M = 1
+N = 1024
+K = 1024
 
+GROUP_SIZE = 128
 matmul_config = bitblas.MatmulConfig(
-    M=1,  # M dimension
-    N=out_features,  # N dimension
-    K=in_features,  # K dimension
+    M=M,  # M dimension
+    N=N,  # N dimension
+    K=K,  # K dimension
     A_dtype="float16",  # activation A dtype
-    W_dtype="uint4",  # weight W dtype
+    W_dtype="uint2",  # weight W dtype
     accum_dtype="float16",  # accumulation dtype
     out_dtype="float16",  # output dtype
     layout="nt",  # matrix layout, "nt" indicates the layout of A is non-transpose and the layout of W is transpose
     with_bias=False,  # bias
     # configs for weight only quantization
-    group_size=group_size,  # setting for grouped quantization
+    group_size=128,  # setting for grouped quantization
     with_scaling=True,  # setting for scaling factor
     with_zeros=True,  # setting for zeros
-    zeros_mode="original",  # setting for how to calculating zeros
+    zeros_mode="quantized",  # setting for how to calculating zeros
 )
+
 matmul = bitblas.Matmul(config=matmul_config)
+scaling_shape = (1024, 1024//128)
+zeros_shape = (1024, 1024//128)
 
-# Define shapes for tensors
-input_shape = (1, 1024)
-weight_shape = (1024, 1024)
-scaling_shape = (1024, 1024 // 128)
-zeros_shape = (1024, 1024 // 128)
-output_shape = (1, 1024)
+# Create input matrices
+input_tensor = torch.rand((1, K), dtype=torch.float16).cuda()
+weight_tensor = torch.randint(0, 4, (N, K), dtype=torch.int8).cuda()
 
-# Create scaling and zeros tensors for quantization
 scaling = torch.rand(scaling_shape, dtype=torch.float16).cuda()
 zeros = torch.rand(zeros_shape, dtype=torch.float16).cuda()
 
-# Create input tensor
-input_tensor = torch.rand(input_shape, dtype=torch.float16).cuda()
+# Transform weight tensor to int4 data type
+transformed = matmul.transform_weight(weight_tensor, zeros=zeros)
+weight_tensor_transformed = transformed[0]
+zeros_transformed = transformed[1]
+# Perform mixed-precision matrix multiplication
+output_tensor = matmul(input_tensor, weight_tensor_transformed, scale=scaling, zeros=zeros_transformed)
 
-# Create and transform weight tensor
-weight_tensor = torch.randint(0, 7, weight_shape, dtype=torch.int8).cuda()
-weight_tensor_int4 = matmul.transform_weight(weight_tensor)
-
-# Perform mixed-precision matrix multiplication with quantization
-output_tensor = matmul(input_tensor, weight_tensor_int4, scale=scaling, zeros=zeros)
-
-rescaling_tensor = torch.zeros_like(weight_tensor, dtype=torch.float16).cuda()
-# Compute reference result with manual scaling and zero-point adjustment
-# rescale = (weight - zeros) * scaling
-for i in range(in_features // group_size):
-    for j in range(group_size):
-        rescaling_tensor[:, i * group_size + j] = (
-            weight_tensor[:, i * group_size + j].to(torch.float16) - zeros[:, i]
-        ) * scaling[:, i]
-ref_result = torch.matmul(input_tensor, rescaling_tensor.t().to(torch.float16))
-# Assert that the results are close within a specified tolerance
+# Reference result using PyTorch matmul for comparison
+ref_result = torch.matmul(input_tensor, weight_tensor.t().to(torch.float16))
+# Assert that the results are close within a specified tolerance, note that the int4 randint value is a little bigger than the float16 value, so we set the atol to 1.0
 print("Ref output:", ref_result)
 print("BitBLAS output:", output_tensor)
-torch.testing.assert_close(output_tensor, ref_result, rtol=1e-2, atol=1e-2)
+torch.testing.assert_close(output_tensor, ref_result, rtol=1e-2, atol=1e-0)

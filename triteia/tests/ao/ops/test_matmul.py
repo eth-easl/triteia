@@ -56,7 +56,9 @@ class TestMatmulLowPrec(unittest.TestCase):
             scales_bitblas = self.tensors['bitblas'][bitwidth][f"{prefix}.scales"]
             
             x = torch.rand((1024, 4096), device="cuda", dtype=torch.float16)
-            bias = torch.zeros((1024, 4096), device="cuda", dtype=torch.float16)
+            bias = torch.zeros(
+                (1024, 4096), device="cuda", dtype=torch.float16
+            )
             pytorch_output = native_matmul_lowprec_248(
                 bitwidth, x, qweight, qzeros, scales, g_idx, bias=bias
             )

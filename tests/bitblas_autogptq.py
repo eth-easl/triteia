@@ -1,20 +1,21 @@
 import os
 import torch
 import safetensors as st
+from fractions import Fraction
 from triteia.ao.ops.nn.linear_bitblas import Linear as BitblasLinear
 from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
     QuantLinear as CudaOldQuantLinear,
 )
-from triteia.ao.ops.linalg.matmul.bitblas_matmul_lowprec import bitblas_quant_bmm_248
-
+from triteia.ao.ops.linalg.matmul.matmul_lowprec import quant_matmul_248_bitblas
+from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
 os.environ['NUMEXPR_MAX_THREADS'] = "32"
 
 prefix = "model.layers.0.self_attn.q_proj"
 
 tensors = {}
-triton_weight = ".local/quantized.safetensors"
-bitblas_weight = ".local/bitblas.safetensors"
-bitwidth = 4
+bitwidth = 2
+triton_weight = f".local/{bitwidth}bit_gptq.safetensors"
+bitblas_weight = f".local/{bitwidth}bit_bitblas.safetensors"
 
 with st.safe_open(triton_weight, framework="pt", device="cuda") as f:
     for key in f.keys():
@@ -31,13 +32,16 @@ with st.safe_open(bitblas_weight, framework="pt", device="cuda") as f:
 bitblas_qweight = tensors[f"{prefix}.qweight"]
 bitblas_zeros = tensors[f"{prefix}.zeros"]
 bitblas_scales = tensors[f"{prefix}.scales"]
+gptq_pack_factor = Fraction(bitwidth, 32)
+bitblas_pack_factor = Fraction(bitwidth, 8)
 
-in_features = qweight.shape[0] * 32 // bitwidth
+in_features = qweight.shape[0] // gptq_pack_factor
 out_features = qweight.shape[1]
+
 group_size = in_features
 
 cuda_old_linear = CudaOldQuantLinear(
-    bits=4,
+    bits=bitwidth,
     group_size=group_size,
     infeatures=in_features,
     outfeatures=out_features,
@@ -53,7 +57,7 @@ bitblas_linear = BitblasLinear(
     out_features=out_features,
     bias=False,
     A_dtype="float16",  # activation A dtype
-    W_dtype="uint4",  # weight W dtype
+    W_dtype=QUANTIZED_DTYPE[bitwidth],  # weight W dtype
     accum_dtype="float16",  # accumulation dtype
     out_dtype="float16",  # output dtype
     # configs for weight only quantization
@@ -69,7 +73,7 @@ bitblas_linear.qweight = bitblas_qweight
 bitblas_linear.zeros = bitblas_zeros
 bitblas_linear.scales = bitblas_scales
 # # Prepare input data
-m = 11008
+m = 1
 inp = torch.rand(m, in_features, dtype=torch.float16, device="cuda")
 
 # Move models to CUDA for execution
@@ -82,12 +86,14 @@ with torch.no_grad():
     res_bitblas = bitblas_linear(inp)
     
 torch.testing.assert_close(res_bitblas, res_cuda_old, rtol=1e-0, atol=1e-1)
-assert bitblas_qweight.shape[1] * 2 == qweight.shape[0] * 8
+
+assert bitblas_qweight.shape[1] == qweight.shape[0] * 4
+
 bitblas_qweight = torch.zeros_like(bitblas_qweight)
 bitblas_zeros = torch.zeros_like(bitblas_zeros)
 bitblas_scales = torch.ones_like(bitblas_scales)
 
-res_bitblas = bitblas_quant_bmm_248(
+res_bitblas = quant_matmul_248_bitblas(
     bitwidth=bitwidth,
     x=inp,
     qweight=bitblas_qweight,
