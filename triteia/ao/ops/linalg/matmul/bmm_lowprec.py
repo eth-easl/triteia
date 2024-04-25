@@ -229,10 +229,10 @@ def bitblas_loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=N
     for i in range(bsz):
         output[i] = bitblas_quant_mm_248(
             bitwidth, 
-            x[i], 
-            qweight[i], 
-            qzero[i].T, 
-            scale[i], 
+            x[i],
+            qweight[i],
+            qzero[i],
+            scale[i],
             None,
             None
         )
