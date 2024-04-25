@@ -52,11 +52,11 @@ class TestMatmulLowPrec(unittest.TestCase):
             g_idx = self.tensors['gptq'][bitwidth][f"{prefix}.g_idx"]
 
             qweight_bitblas = self.tensors['bitblas'][bitwidth][f"{prefix}.qweight"]
-            qzeros_bitblas = self.tensors['bitblas'][bitwidth][f"{prefix}.zeros"].T
+            qzeros_bitblas = self.tensors['bitblas'][bitwidth][f"{prefix}.zeros"]
             scales_bitblas = self.tensors['bitblas'][bitwidth][f"{prefix}.scales"]
             
-            x = torch.rand((1, 4096), device="cuda", dtype=torch.float16)
-            bias = torch.zeros((1, 4096), device="cuda", dtype=torch.float16)
+            x = torch.rand((1024, 4096), device="cuda", dtype=torch.float16)
+            bias = torch.zeros((1024, 4096), device="cuda", dtype=torch.float16)
             pytorch_output = native_matmul_lowprec_248(
                 bitwidth, x, qweight, qzeros, scales, g_idx, bias=bias
             )

@@ -22,7 +22,7 @@ def main(args):
         )
         new_tensors[module + ".qweight"] = qweight
         new_tensors[module + ".scales"] = scales
-        new_tensors[module + ".zeros"] = zeros
+        new_tensors[module + ".zeros"] = zeros.T
         if bias is not None:
             new_tensors[module + ".bias"] = bias
         remaining_keys.remove(module + ".qweight")
@@ -30,7 +30,9 @@ def main(args):
         remaining_keys.remove(module + ".scales")
         remaining_keys.remove(module + ".g_idx")
     new_tensors.update({key: tensors[key] for key in remaining_keys})        
+    
     print(f"Finished converting to bitblas with bitwidth {args.bitwidth}! Saving to {args.output}...")
+    
     save_file(new_tensors, args.output)
 
 if __name__ == "__main__":

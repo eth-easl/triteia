@@ -49,9 +49,14 @@ def get_or_create_bitblas_operator(config, enable_tuning=True):
     bitblas_matmul = global_operator_cache.get(config)
     if bitblas_matmul is None:
         print("BitBLAS Operator not found in global_operator_cache, creating...")
-        bitblas_matmul = bitblas.Matmul(config=config, target=BITBLAS_TARGET)
+        # don't tune it here so we can pass parameters
+        bitblas_matmul = bitblas.Matmul(
+            config=config, 
+            target=BITBLAS_TARGET,
+            enable_tuning=False,
+        )
         if enable_tuning:
-            bitblas_matmul.hardware_aware_finetune(topk=20)
+            bitblas_matmul.hardware_aware_finetune(topk=20, parallel_build=True)
             global_operator_cache.add(config, bitblas_matmul)
             global_operator_cache.save_into_database(
                 BITBLAS_DATABASE_PATH, BITBLAS_TARGET

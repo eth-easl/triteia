@@ -3,8 +3,7 @@ import triton
 import triton.language as tl
 from torch.cuda.amp import custom_fwd
 import triteia.ao.utils.autotune as autotune
-from .matmul_lowprec import quant_matmul_248
-from triteia.ao.ops.linalg.matmul.bitblas_matmul_lowprec import bitblas_quant_mm_248
+from .matmul_lowprec import quant_matmul_248, quant_matmul_248_bitblas
 
 @autotune.autotune(
     key=["M", "N", "K"],
@@ -227,7 +226,7 @@ def bitblas_loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=N
         dtype=torch.float16,
     )
     for i in range(bsz):
-        output[i] = bitblas_quant_mm_248(
+        output[i] = quant_matmul_248_bitblas(
             bitwidth, 
             x[i],
             qweight[i],
