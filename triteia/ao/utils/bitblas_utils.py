@@ -9,7 +9,7 @@ BITBLAS_TARGET = auto_detect_nvidia_target()
 BITBLAS_DATABASE_PATH = os.path.join(os.path.expanduser("~"), ".cache", ".bitblas")
 global_operator_cache.load_from_database(BITBLAS_DATABASE_PATH, BITBLAS_TARGET)
 
-def convert_to_bitblas(bitwidth, module_name, tensors):
+def convert_to_bitblas(bitwidth, module_name, tensors, zeros_mode="quantized"):
     qweight = tensors[module_name + ".qweight"]
     qzero = tensors[module_name + ".qzeros"]
     scales = tensors[module_name + ".scales"]
@@ -35,7 +35,8 @@ def convert_to_bitblas(bitwidth, module_name, tensors):
         group_size=group_size,
         with_scaling=True,
         with_zeros=True,
-        zeros_mode="quantized",
+        zeros_mode=zeros_mode,
+        enable_tuning=False,
     )
     bitblas_linear.repack_from_weights(qweight, scales, qzero, bias)
     return (
@@ -70,3 +71,6 @@ def get_or_create_bitblas_operator(config, enable_tuning=True):
         # print("BitBLAS Operator found in global_operator_cache.")
         pass
     return bitblas_matmul
+
+def dequant_zeros(bitwidth):
+    pass

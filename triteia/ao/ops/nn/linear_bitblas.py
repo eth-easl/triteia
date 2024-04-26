@@ -7,9 +7,9 @@ https://raw.githubusercontent.com/microsoft/BitBLAS/main/python/bitblas/module/_
 
 import ctypes
 import operator
+import numpy as np
 from functools import reduce
 from logging import getLogger
-
 import torch
 import torch.nn as nn
 
@@ -42,6 +42,21 @@ def unpack_qzeros(qzeros, bits):
 
     return unpacked_zeros + 1
 
+def pack_zeros(zeros, bits):
+    qzeros = np.zeros((zeros.shape[0], zeros.shape[1] // 32 * bits), dtype=np.uint32)
+    if bits in [2,4,8]:
+        i = 0
+        col = 0
+        while col < qzeros.shape[1]:
+            for j in range(i, i+(32 // bits)):
+                qzeros[:, col] |= zeros[:, j] << (bits * (j - i))
+            i += 32 // bits
+            col += 1
+    else:
+        raise ValueError(f"Unsupported bits: {bits}")
+    qzeros = qzeros.astype(np.int32)
+    qzeros = torch.from_numpy(qzeros).to(zeros.device)
+    return qzeros
 
 class Linear(nn.Module):
     opt_M = [1, 16, 32, 64, 128, 256, 512]
@@ -238,12 +253,15 @@ class Linear(nn.Module):
             if enable_tuning:
                 bitblas_matmul.hardware_aware_finetune(topk=20)
                 global_operator_cache.add(config, bitblas_matmul)
-                global_operator_cache.save_into_database(
-                    BITBLAS_DATABASE_PATH, BITBLAS_TARGET
-                )
-                print(
-                    "BitBLAS Tuning done, appended operator to global_operator_cache."
-                )
+                try:
+                    global_operator_cache.save_into_database(
+                        BITBLAS_DATABASE_PATH, BITBLAS_TARGET
+                    )
+                    print(
+                        "BitBLAS Tuning done, appended operator to global_operator_cache."
+                    )
+                except Exception as e:
+                    print(f"Failed to save into database: {e}")
             else:
                 print("BitBLAS Operator created.")
         else:

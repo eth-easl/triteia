@@ -18,11 +18,11 @@ def main(args):
     ]
     for module in tqdm(quantized_modules):
         qweight, scales, zeros, bias = convert_to_bitblas(
-            args.bitwidth, module, tensors
+            args.bitwidth, module, tensors, args.zeros_mode
         )
         new_tensors[module + ".qweight"] = qweight
         new_tensors[module + ".scales"] = scales
-        new_tensors[module + ".zeros"] = zeros.T
+        new_tensors[module + ".zeros"] = zeros
         if bias is not None:
             new_tensors[module + ".bias"] = bias
         remaining_keys.remove(module + ".qweight")
@@ -43,6 +43,6 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt", type=str, required=True)
     parser.add_argument("--output", type=str, required=True)
     parser.add_argument("--bitwidth", type=int, required=True)
-
+    parser.add_argument("--zeros-mode", type=str, default="quantized")
     args = parser.parse_args()
     main(args)

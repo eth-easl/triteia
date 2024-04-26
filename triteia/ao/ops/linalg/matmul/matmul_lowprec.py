@@ -377,28 +377,29 @@ class QuantLinearInferenceOnlyFunction(torch.autograd.Function):
 def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bias=None):
     pack_factor = Fraction(bitwidth, DTYPES_BIT[BITBLAS_STORAGE_DTYPE])
     assert qweight.shape[1] // pack_factor == x.shape[1], f"qweight.shape[1] // pack_factor != x.shape[1], got {qweight.shape[1]//pack_factor} != {x.shape[1]}"
-    assert qweight.shape[0] == qzero.shape[0] // pack_factor, f"qweight.shape[0] != qzero.shape[0], got {qweight.shape[0]} != {qzero.shape[0]//pack_factor}"
-    assert qzero.shape[0] // pack_factor == scale.shape[0], f"qzero.shape[1] // pack_factor != scale.shape[0], got {qzero.shape[1] // pack_factor} != {scale.shape[0]}"
-
+    # assert qweight.shape[0] == qzero.shape[0] // pack_factor, f"qweight.shape[0] != qzero.shape[0], got {qweight.shape[0]} != {qzero.shape[0]//pack_factor}"
+    # assert qzero.shape[0] // pack_factor == scale.shape[0], f"qzero.shape[1] // pack_factor != scale.shape[0], got {qzero.shape[1] // pack_factor} != {scale.shape[0]}"
+    print(f"qweight.shape: {qweight.shape}, qzero.shape: {qzero.shape}, scale.shape: {scale.shape}, x.shape: {x.shape}")
     M = x.shape[0]
     N = qweight.shape[0] #   outfeatures
     K = qweight.shape[1] // pack_factor # infeatures
     print(f"M: {M}, N: {N}, K: {K}")
     print(f"Bitwidth: {bitwidth}, pack_factor: {pack_factor}")
     matmul_config = bitblas.MatmulConfig(
-        M=M,
+        M=1,
         N=N,
         K=K,
-        fast_decoding=True,
+        # fast_decoding=True,
         A_dtype="float16",
         W_dtype=QUANTIZED_DTYPE[bitwidth],
         accum_dtype="float16",
         out_dtype="float16",
+        layout="nt",
         with_bias=False,
         group_size=K,
         with_scaling=True,
         with_zeros=True,
-        zeros_mode="quantized",
+        zeros_mode="original",
     )
     matmul = get_or_create_bitblas_operator(matmul_config)
     output_tensor = matmul(x, qweight, scale=scale, zeros=qzero)

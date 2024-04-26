@@ -1,14 +1,13 @@
 import os
 import torch
 import bitblas
-from triteia.ao.utils.bitblas_utils import get_or_create_bitblas_operator
+
 os.environ["NUMEXPR_MAX_THREADS"] = "32"
 
-in_features = 4096
-out_features = 4096
-group_size = 4096
+in_features = 1024
+out_features = 1024
+group_size = 128
 bitwidth = 2
-
 matmul_config = bitblas.MatmulConfig(
     M=1,  # M dimension
     N=out_features,  # N dimension
@@ -23,16 +22,16 @@ matmul_config = bitblas.MatmulConfig(
     group_size=group_size,  # setting for grouped quantization
     with_scaling=True,  # setting for scaling factor
     with_zeros=True,  # setting for zeros
-    zeros_mode="original",  # setting for how to calculating zeros
+    zeros_mode="quantized",  # setting for how to calculating zeros
 )
-# matmul = bitblas.Matmul(config=matmul_config)
-matmul = get_or_create_bitblas_operator(config=matmul_config)
+matmul = bitblas.Matmul(config=matmul_config)
+
 # Define shapes for tensors
-input_shape = (1, in_features)
-weight_shape = (out_features, in_features)
-scaling_shape = (in_features, out_features // group_size)
-zeros_shape = (in_features, out_features // group_size)
-output_shape = (1, out_features)
+input_shape = (1, 1024)
+weight_shape = (1024, 1024)
+scaling_shape = (1024, 1024 // 128)
+zeros_shape = (1024, 1024 // 128)
+output_shape = (1, 1024)
 
 # Create scaling and zeros tensors for quantization
 scaling = torch.rand(scaling_shape, dtype=torch.float16).cuda()
@@ -42,24 +41,19 @@ zeros = torch.rand(zeros_shape, dtype=torch.float16).cuda()
 input_tensor = torch.rand(input_shape, dtype=torch.float16).cuda()
 
 # Create and transform weight tensor
-maxq = 2 ** (bitwidth - 1) - 1
+maxq = 2 ** (bitwidth - 1)-1
+weight_tensor = torch.randint(0, maxq, weight_shape, dtype=torch.int8).cuda()
+transformed = matmul.transform_weight(weight_tensor, zeros=zeros)
+weight_tensor_quant = transformed[0]
+qzeros = transformed[1]
 
-weight_tensor = torch.randint(0, 4, weight_shape, dtype=torch.int8).cuda()
-
-print(f"weight tensor, min: {weight_tensor.min()}, max: {weight_tensor.max()}")
-
-weight_tensor_quant = matmul.transform_weight(weight_tensor)
-print(weight_tensor_quant.shape)
-print(f"weight tensor quant, min: {weight_tensor_quant.min()}, max: {weight_tensor_quant.max()}")
-print(f"zeros, min: {zeros.min()}, max: {zeros.max()}")
 # Perform mixed-precision matrix multiplication with quantization
-output_tensor = matmul(input_tensor, weight_tensor_quant, scale=scaling, zeros=zeros)
-print("BitBLAS output:", output_tensor)
-
+output_tensor = matmul(input_tensor, weight_tensor_quant, scale=scaling, zeros=qzeros)
 
 rescaling_tensor = torch.zeros_like(weight_tensor, dtype=torch.float16).cuda()
 # Compute reference result with manual scaling and zero-point adjustment
 # rescale = (weight - zeros) * scaling
+
 for i in range(in_features // group_size):
     for j in range(group_size):
         rescaling_tensor[:, i * group_size + j] = (
@@ -69,4 +63,5 @@ for i in range(in_features // group_size):
 ref_result = torch.matmul(input_tensor, rescaling_tensor.t().to(torch.float16))
 # Assert that the results are close within a specified tolerance
 print("Ref output:", ref_result)
-torch.testing.assert_close(output_tensor, ref_result, rtol=1e-1, atol=1e-1)
+print("BitBLAS output:", output_tensor)
+torch.testing.assert_close(output_tensor, ref_result, rtol=1e-2, atol=1e-2)
