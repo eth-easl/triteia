@@ -45,7 +45,7 @@ maxq = 2 ** (bitwidth - 1)-1
 weight_tensor = torch.randint(0, maxq, weight_shape, dtype=torch.int8).cuda()
 transformed = matmul.transform_weight(weight_tensor, zeros=zeros)
 weight_tensor_quant = transformed[0]
-qzeros = transformed[1]
+
 
 # Perform mixed-precision matrix multiplication with quantization
 output_tensor = matmul(input_tensor, weight_tensor_quant, scale=scaling, zeros=qzeros)

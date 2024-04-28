@@ -26,6 +26,21 @@ BITBLAS_TARGET = auto_detect_nvidia_target()
 BITBLAS_DATABASE_PATH = get_database_path()
 
 
+def unpack_qzeros_fp16(qzeros, bits):
+    qzeros = qzeros.view(torch.int32)
+    elems_per_int32 = 32 // bits
+    unpacked_zeros = torch.zeros(
+        (qzeros.shape[0], qzeros.shape[1] * elems_per_int32),
+        dtype = torch.float16,
+        device = qzeros.device,
+        requires_grad = False,
+    )
+    for col in range(unpacked_zeros.shape[1]):
+        i = col % elems_per_int32
+        unpacked_zeros[:, col] = (qzeros[:, col // elems_per_int32] >> (bits * i)) & 0xF
+        
+    return unpacked_zeros + 1
+
 def unpack_qzeros(qzeros, bits):
     qzeros = qzeros.view(torch.int32)
     elems_per_int32 = 32 // bits
@@ -42,20 +57,38 @@ def unpack_qzeros(qzeros, bits):
 
     return unpacked_zeros + 1
 
-def pack_zeros(zeros, bits):
+def gptq_unpack_qzeros(qzeros, bits):
+    assert bits in [2, 4, 8], f"Unsupported bits: {bits}"
+    wf = torch.tensor(list(range(0, 32, bits)), dtype=torch.int32).unsqueeze(0)
+    qzeros = qzeros.cpu()
+    zeros = torch.bitwise_right_shift(
+        torch.unsqueeze(qzeros, 2).expand(-1, -1, 32 // bits),
+                wf.unsqueeze(0),
+        ).to(torch.int16 if bits == 8 else torch.int8)
+    
+    zeros = torch.bitwise_and(zeros, (2**bits) - 1)
+
+    zeros = zeros + 1
+    # zeros = zeros.reshape(scales.shape)
+    return zeros
+
+
+def gptq_pack_zeros(zeros, bits):
+    zeros = zeros.clone()
+    zeros -= 1
+    zeros = zeros.cpu()
+    zeros = zeros.numpy().astype(np.uint32)
     qzeros = np.zeros((zeros.shape[0], zeros.shape[1] // 32 * bits), dtype=np.uint32)
-    if bits in [2,4,8]:
-        i = 0
-        col = 0
-        while col < qzeros.shape[1]:
-            for j in range(i, i+(32 // bits)):
-                qzeros[:, col] |= zeros[:, j] << (bits * (j - i))
-            i += 32 // bits
-            col += 1
-    else:
-        raise ValueError(f"Unsupported bits: {bits}")
+    assert bits in [2, 4, 8], f"Unsupported bits: {bits}"
+    i = 0
+    col = 0
+    while col < qzeros.shape[1]:
+        for j in range(i, i+(32 // bits)):
+            qzeros[:, col] |= zeros[:, j] << (bits * (j - i))
+        i += 32 // bits
+        col += 1
     qzeros = qzeros.astype(np.int32)
-    qzeros = torch.from_numpy(qzeros).to(zeros.device)
+    qzeros = torch.from_numpy(qzeros).cuda()
     return qzeros
 
 class Linear(nn.Module):
@@ -331,10 +364,14 @@ class Linear(nn.Module):
             self.zeros = intzeros.to(torch.float16).contiguous()
         elif self.bitblas_matmul.config.zeros_mode == "rescale":
             self.zeros[:, :] = intzeros.to(torch.float16)[:, :] * self.scales[:, :]
+            
         elif self.bitblas_matmul.config.zeros_mode == "quantized":
             self.zeros = (
                 torch.Tensor(
-                    general_compress(intzeros.T.contiguous().cpu().numpy(), self.bits)
+                    general_compress(
+                        intzeros.T.contiguous().cpu().numpy(), 
+                        self.bits
+                    )
                 )
                 .to(self.qweight.device)
                 .to(self.zeros.dtype)

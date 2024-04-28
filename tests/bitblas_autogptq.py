@@ -2,7 +2,7 @@ import os
 import torch
 import safetensors as st
 from fractions import Fraction
-from triteia.ao.ops.nn.linear_bitblas import Linear as BitblasLinear
+from triteia.ao.nn.linear_bitblas import Linear as BitblasLinear
 from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
     QuantLinear as CudaOldQuantLinear,
 )

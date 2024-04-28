@@ -7,7 +7,17 @@ os.environ["NUMEXPR_MAX_THREADS"] = "32"
 in_features = 4096
 out_features = 4096
 group_size = 4096
-bitwidth = 4
+bitwidth = 2
+
+def unpack_2bit_to_fp16(qzeros, scale=0.1, zero_point=-2.0):
+    # Unpack 2-bit values and interpret them as unsigned integers
+    unpacked_zeros = torch.zeros((qzeros.shape[0], qzeros.shape[1] * 16), dtype=torch.float16, device=qzeros.device)
+    for col in range(unpacked_zeros.shape[1]):
+        i = col % 16
+        # Shift to get the 2-bit value, mask it with 0b11 (which is 3 in decimal)
+        unpacked_value = (qzeros[:, col // 16] >> (2 * i)) & 0b11
+        unpacked_zeros[:, col] = unpacked_value.float()
+    return unpacked_zeros
 
 matmul_config = bitblas.MatmulConfig(
     M=1,  # M dimension
@@ -36,7 +46,7 @@ output_shape = (1, out_features)
 
 # Create scaling and zeros tensors for quantization
 scaling = torch.rand(scaling_shape, dtype=torch.float16).cuda()
-zeros = torch.full((in_features // group_size, out_features), 7, dtype=torch.int32)
+zeros = torch.rand(zeros_shape, dtype=torch.float16).cuda()
 # Create input tensor
 input_tensor = torch.rand(input_shape, dtype=torch.float16).cuda()
 # Create and transform weight tensor
@@ -47,6 +57,7 @@ weight_tensor = torch.randint(0, 4, weight_shape, dtype=torch.int8).cuda()
 print(f"weight tensor, min: {weight_tensor.min()}, max: {weight_tensor.max()}")
 
 weight_tensor_quant = matmul.transform_weight(weight_tensor)
+
 
 print(weight_tensor_quant.shape)
 print(f"weight tensor quant, min: {weight_tensor_quant.min()}, max: {weight_tensor_quant.max()}")

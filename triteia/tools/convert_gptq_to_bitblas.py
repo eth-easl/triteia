@@ -22,7 +22,7 @@ def main(args):
         )
         new_tensors[module + ".qweight"] = qweight
         new_tensors[module + ".scales"] = scales
-        new_tensors[module + ".zeros"] = zeros
+        new_tensors[module + ".zeros"] = zeros.T
         if bias is not None:
             new_tensors[module + ".bias"] = bias
         remaining_keys.remove(module + ".qweight")

@@ -23,7 +23,7 @@ def convert_to_bitblas(bitwidth, module_name, tensors, zeros_mode="quantized"):
     outfeatures = qweight.shape[1]
     group_size = infeatures
 
-    from triteia.ao.ops.nn.linear_bitblas import Linear as BitblasLinear
+    from triteia.ao.nn.linear_bitblas import Linear as BitblasLinear
     bitblas_linear = BitblasLinear(
         in_features=infeatures,
         out_features=outfeatures,
