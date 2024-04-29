@@ -1,4 +1,3 @@
-bitblas @ https://filedn.eu/lougUsdPvd1uJK2jfOYWogH/bitblas-0.0.1.dev2+ubuntu.22.4.cu121-py3-none-any.whl
 thefuzz
 cffi
 cpplint
