@@ -379,7 +379,7 @@ def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bia
     assert qweight.shape[1] // pack_factor == x.shape[1], f"qweight.shape[1] // pack_factor != x.shape[1], got {qweight.shape[1]//pack_factor} != {x.shape[1]}"
     assert qweight.shape[0] == qzero.shape[0] // pack_factor, f"qweight.shape[0] != qzero.shape[0], got {qweight.shape[0]} != {qzero.shape[0]//pack_factor}"
     assert qzero.shape[0] // pack_factor == scale.shape[0], f"qzero.shape[1] // pack_factor != scale.shape[0], got {qzero.shape[1] // pack_factor} != {scale.shape[0]}"
-
+    x_dtype = "float16"
     M = x.shape[0]
     N = qweight.shape[0] #   outfeatures
     K = qweight.shape[1] // pack_factor # infeatures
@@ -390,12 +390,12 @@ def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bia
         N=N,
         K=K,
         fast_decoding=True,
-        A_dtype="float16",
+        A_dtype=x_dtype,
         W_dtype=QUANTIZED_DTYPE[bitwidth],
         accum_dtype="float16",
         out_dtype="float16",
         with_bias=False,
-        group_size=-1,
+        group_size=K,
         with_scaling=True,
         with_zeros=True,
         zeros_mode="quantized",
