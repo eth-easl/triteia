@@ -5,7 +5,10 @@ from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
 from bitblas.cache.operator import global_operator_cache
 from bitblas import auto_detect_nvidia_target
 
-BITBLAS_TARGET = auto_detect_nvidia_target()
+if "BITBLAS_TARGET" not in os.environ:
+    BITBLAS_TARGET = auto_detect_nvidia_target()
+else:
+    BITBLAS_TARGET = os.environ["BITBLAS_TARGET"]
 BITBLAS_DATABASE_PATH = os.path.join(os.path.expanduser("~"), ".cache", ".bitblas")
 global_operator_cache.load_from_database(BITBLAS_DATABASE_PATH, BITBLAS_TARGET)
 

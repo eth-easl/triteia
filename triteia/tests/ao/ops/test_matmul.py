@@ -73,7 +73,7 @@ class TestMatmulLowPrec(unittest.TestCase):
             self.assertEqual(pytorch_output.shape, triton_output.shape)
             self.assertEqual(pytorch_output.shape, bitblas_output.shape)
             tt.assert_close(pytorch_output, triton_output)
-            tt.assert_close(pytorch_output, bitblas_output, rtol=1e2, atol=1e2)
+            tt.assert_close(pytorch_output, bitblas_output, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":
