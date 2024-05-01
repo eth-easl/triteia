@@ -13,7 +13,7 @@ in_features = 8192 # K
 group_size = in_features
 out_features = 1024 # N
 bitwidth = 4
-
+device = "cuda:0"
 def gen_quant(bitwidth, k, n, groupsize=-1):
     maxq = 2**bitwidth
     w = torch.randn((k, n), dtype=torch.half, device="cpu")
@@ -59,6 +59,7 @@ original_w, linear, s, qw = gen_quant(
 )
 max_zero_int = 2*bitwidth - 1
 zeros = torch.full((in_features // group_size, out_features), max_zero_int, dtype=torch.int32)
+
 cuda_old_linear.pack(linear, s.T, zeros.T, g_idx=None)
 
 bitblas_linear = bitblas.Linear(
@@ -75,13 +76,13 @@ bitblas_linear = bitblas.Linear(
     zeros_mode="quantized",
     enable_tuning=False,
 )
-bitblas_linear = bitblas_linear.to("cuda")
-cuda_old_linear = cuda_old_linear.to("cuda")
+bitblas_linear = bitblas_linear.to(device)
+cuda_old_linear = cuda_old_linear.to(device)
 bitblas_linear.repack_from_gptq(cuda_old_linear)
 m = 1  # Batch size
 print(f"M: {m}, N: {out_features}, K: {in_features}")
 
-inp = torch.rand(m, in_features, dtype=torch.float16, device="cuda")
+inp = torch.rand(m, in_features, dtype=torch.float16, device=device)
 res_bitblas = quant_matmul_248_bitblas(
     bitwidth,
     inp,

@@ -190,9 +190,6 @@ def quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
         qzero.stride(0),
         g_idx.stride(0),
     )
-    src = src.asm['ttir']
-    with open("quant_bmm_248_kernel.ttir", "w") as f:
-        f.write(src)
     if bias is not None:
         output += bias
     return output
@@ -225,24 +222,17 @@ def bitblas_loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=N
         device=x.device,
         dtype=torch.float16,
     )
+    print(output)
     for i in range(bsz):
-        try:
-            output[i] = quant_matmul_248_bitblas(
-                bitwidth, 
-                x[i],
-                qweight[i],
-                qzero[i],
-                scale[i],
-                None,
-                None
-            )
-        except Exception:
-            print(f"{x[i][0][0]}")
-            print(f"{qweight[i][0][0]}")
-            print(f"{qzero[i][0][0]}")
-            print(f"{scale[i][0][0]}")
-            print(f"x[i]: {x[i].shape}@{x[i].device}, qweight[i]: {qweight[i].shape}@{qweight[i].device}, qzero[i]: {qzero[i].shape}@{qzero[i].device}, scale[i]: {scale[i].shape}@{scale[i].device}")
-            raise
+        output[i] = quant_matmul_248_bitblas(
+            bitwidth, 
+            x[i],
+            qweight[i],
+            qzero[i],
+            scale[i],
+            None,
+            None
+        )
     if bias is not None:
         output += bias
     return output
