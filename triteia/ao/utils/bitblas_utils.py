@@ -9,7 +9,7 @@ if "BITBLAS_TARGET" not in os.environ:
     BITBLAS_TARGET = auto_detect_nvidia_target()
 else:
     BITBLAS_TARGET = os.environ["BITBLAS_TARGET"]
-BITBLAS_DATABASE_PATH = os.path.join(os.path.expanduser("~"), ".cache", ".bitblas")
+BITBLAS_DATABASE_PATH = os.path.join(os.path.expanduser("~"), ".cache", "bitblas")
 global_operator_cache.load_from_database(BITBLAS_DATABASE_PATH, BITBLAS_TARGET)
 
 def convert_to_bitblas(bitwidth, module_name, tensors, zeros_mode="quantized"):
@@ -69,9 +69,8 @@ def get_or_create_bitblas_operator(config, enable_tuning=True):
                 "BitBLAS Tuning done, appended operator to global_operator_cache."
             )
         else:
-            print("BitBLAS Operator created.")
+            print("BitBLAS Operator created without tuning, not supposed to be used unless you know what you're doing...")
     else:
-        # print("BitBLAS Operator found in global_operator_cache.")
         pass
     return bitblas_matmul
 

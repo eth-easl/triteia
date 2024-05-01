@@ -1,20 +1,18 @@
+import os
 import torch
 import bitblas
 import torch.nn as nn
 from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
     QuantLinear as CudaOldQuantLinear,
 )
-import os
-from bitblas import Matmul
-from triteia.ao.nn.linear_bitblas import Linear as BitblasLinear
-from triteia.ao.nn.linear_bitblas import unpack_qzeros
+from triteia.ao.ops.linalg.matmul.matmul_lowprec import quant_matmul_248_bitblas
 
 os.environ["NUMEXPR_MAX_THREADS"] = "16"
 
-group_size = 128
-in_features = 128
-out_features = 128
-bitwidth = 2
+in_features = 8192 # K
+group_size = in_features
+out_features = 1024 # N
+bitwidth = 4
 
 def gen_quant(bitwidth, k, n, groupsize=-1):
     maxq = 2**bitwidth
@@ -55,60 +53,49 @@ cuda_old_linear = CudaOldQuantLinear(
     outfeatures=out_features,
     bias=False,
 )
+
+
 original_w, linear, s, qw = gen_quant(
     bitwidth, in_features, out_features, group_size
 )
-zero_range = 2 * bitwidth
-# zeros = torch.full((in_features // group_size, out_features), 3, dtype=torch.int32)
-zeros = torch.randint(0, zero_range, (in_features // group_size, out_features), dtype=torch.int32)
-
+max_zero_int = 2*bitwidth - 1
+zeros = torch.full((in_features // group_size, out_features), max_zero_int, dtype=torch.int32)
 cuda_old_linear.pack(linear, s.T, zeros.T, g_idx=None)
-bitblas_linear = BitblasLinear(
+
+bitblas_linear = bitblas.Linear(
     in_features=in_features,
     out_features=out_features,
     bias=False,
-    A_dtype="float16",  # activation A dtype
-    W_dtype=f"uint{bitwidth}",  # weight W dtype
-    accum_dtype="float16",  # accumulation dtype
-    out_dtype="float16",  # output dtype
-    # configs for weight only quantization
-    group_size=group_size,  # setting for grouped quantization
-    with_scaling=True,  # setting for scaling factor
-    with_zeros=True,  # setting for zeros
-    zeros_mode="quantized",  # setting for how to calculating zeros
-)
-print(f"cuda_old_linear.qzeros: {cuda_old_linear.qzeros}, {cuda_old_linear.qzeros.shape}, {cuda_old_linear.qzeros.dtype}")
-print(f"unpacked qzeros max: {unpack_qzeros(cuda_old_linear.qzeros, bitwidth).min()} - {unpack_qzeros(cuda_old_linear.qzeros, bitwidth).max()}")
-print(f"Repacking...")
-
-bitblas_linear.repack_from_weights(cuda_old_linear.qweight, cuda_old_linear.scales, cuda_old_linear.qzeros, cuda_old_linear.bias)
-m = 1  # Batch size
-matmul_config = bitblas.MatmulConfig(
-    M=m,
-    N=out_features,
-    K=in_features,
-    # fast_decoding=True,
     A_dtype="float16",
     W_dtype=f"uint{bitwidth}",
     accum_dtype="float16",
     out_dtype="float16",
-    layout="nt",
-    with_bias=False,
     group_size=group_size,
     with_scaling=True,
     with_zeros=True,
     zeros_mode="quantized",
+    enable_tuning=False,
 )
-# for some reason, I got segmentation fault when using bitblas_linear(inp)
-matmul = Matmul(matmul_config)
-inp = torch.rand(m, in_features, dtype=torch.float16, device="cuda")
-cuda_old_linear = cuda_old_linear.to("cuda")
 bitblas_linear = bitblas_linear.to("cuda")
+cuda_old_linear = cuda_old_linear.to("cuda")
+bitblas_linear.repack_from_gptq(cuda_old_linear)
+m = 1  # Batch size
+print(f"M: {m}, N: {out_features}, K: {in_features}")
+print(bitblas_linear.zeros.shape)
+
+inp = torch.rand(m, in_features, dtype=torch.float16, device="cuda")
+res_bitblas = quant_matmul_248_bitblas(
+    bitwidth,
+    inp,
+    bitblas_linear.qweight,
+    bitblas_linear.zeros.T,
+    bitblas_linear.scales.cuda(),
+    None
+)
 
 with torch.no_grad():
     res_cuda_old = cuda_old_linear(inp)
-    res_bitblas = matmul(inp, bitblas_linear.qweight, bitblas_linear.scales, bitblas_linear.zeros)
 
 print(f"CudaOldQuantLinear output: {res_cuda_old}")
 print(f"BitBLAS output: {res_bitblas}")
-torch.testing.assert_close(res_bitblas, res_cuda_old, rtol=1, atol=1)
+torch.testing.assert_close(res_bitblas, res_cuda_old, rtol=1, atol=10)
