@@ -54,7 +54,6 @@ cuda_old_linear = CudaOldQuantLinear(
     bias=False,
 )
 
-
 original_w, linear, s, qw = gen_quant(
     bitwidth, in_features, out_features, group_size
 )
@@ -81,7 +80,6 @@ cuda_old_linear = cuda_old_linear.to("cuda")
 bitblas_linear.repack_from_gptq(cuda_old_linear)
 m = 1  # Batch size
 print(f"M: {m}, N: {out_features}, K: {in_features}")
-print(bitblas_linear.zeros.shape)
 
 inp = torch.rand(m, in_features, dtype=torch.float16, device="cuda")
 res_bitblas = quant_matmul_248_bitblas(

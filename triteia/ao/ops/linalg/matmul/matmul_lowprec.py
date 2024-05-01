@@ -384,6 +384,7 @@ def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bia
     M = x.shape[0]
     N = qweight.shape[0] #   outfeatures
     K = qweight.shape[1] // pack_factor # infeatures
+    print(f"M: {M}, N: {N}, K: {K}")
     matmul_config = bitblas.MatmulConfig(
         M=M,
         N=N,

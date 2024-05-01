@@ -6,7 +6,7 @@ from triteia.ao.ops.linalg.matmul.bmm_lowprec_new import quant_bmm_248
 import safetensors as st
 
 tensors = {}
-with st.safe_open(".local/quantized.safetensors", framework="pt", device="cuda") as f:
+with st.safe_open(".local/4bit_gptq.safetensors", framework="pt", device="cuda") as f:
     for key in f.keys():
         tensors[key] = f.get_tensor(key)
 BSZs = [1, 8, 16, 32, 64]

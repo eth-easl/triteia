@@ -226,15 +226,23 @@ def bitblas_loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=N
         dtype=torch.float16,
     )
     for i in range(bsz):
-        output[i] = quant_matmul_248_bitblas(
-            bitwidth, 
-            x[i],
-            qweight[i],
-            qzero[i],
-            scale[i],
-            None,
-            None
-        )
+        try:
+            output[i] = quant_matmul_248_bitblas(
+                bitwidth, 
+                x[i],
+                qweight[i],
+                qzero[i],
+                scale[i],
+                None,
+                None
+            )
+        except Exception:
+            print(f"x[i]: {x[i].shape}@{x[i].device}, qweight[i]: {qweight[i].shape}@{qweight[i].device}, qzero[i]: {qzero[i].shape}@{qzero[i].device}, scale[i]: {scale[i].shape}@{scale[i].device}, g_idx[i]: {g_idx[i].shape}@{g_idx[i].device}, bias: {bias.shape}@{bias.device}")
+            print(f"{x[i][0][0]}")
+            print(f"{qweight[i][0][0]}")
+            print(f"{qzero[i][0][0]}")
+            print(f"{scale[i][0][0]}")
+            raise
     if bias is not None:
         output += bias
     return output
