@@ -1,3 +1,4 @@
+import os
 import torch
 import triton
 from typing import Optional
@@ -384,7 +385,6 @@ def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bia
     M = x.shape[0]
     N = qweight.shape[0] #   outfeatures
     K = qweight.shape[1] // pack_factor # infeatures
-    print(f"M: {M}, N: {N}, K: {K}")
     matmul_config = bitblas.MatmulConfig(
         M=M,
         N=N,
@@ -403,5 +403,13 @@ def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bia
     )
     matmul = get_or_create_bitblas_operator(matmul_config)
     with torch.no_grad():
+        # print(f"input tensor: {x.mean()}, qweight tensor: {qweight.mean()}, qzero tensor: {qzero.mean()}, scale tensor: {scale.mean()}")
+        print(f"cuda visible devices: {os.environ['CUDA_VISIBLE_DEVICES']}")
+        print(f"input tensor: {x.mean()} ")
+        print(f"qweight tensor: {qweight[0][0]} @ {qweight.device}")
+        print(f"qzero tensor: {qzero[0][0]} @ {qzero.device}")
+        print(f"scale tensor: {scale[0][0]} @ {scale.device}")
         output_tensor = matmul(x, qweight, scale=scale, zeros=qzero)
+        print(f"output_tensor: {output_tensor.device}")
+    print(f"output tensor: {output_tensor[0][0]} @ {output_tensor.device}")
     return output_tensor
