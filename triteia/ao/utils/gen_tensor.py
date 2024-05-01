@@ -3,7 +3,7 @@ import torch.nn as nn
 from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
     QuantLinear as CudaOldQuantLinear,
 )
-
+from triteia.ao.nn.linear_bitblas import Linear as BitblasLinear
 def gen_quant(bitwidth, k, n, groupsize=-1):
     maxq = 2**bitwidth
     w = torch.randn((k, n), dtype=torch.half, device="cpu")
@@ -36,7 +36,9 @@ def gen_quant(bitwidth, k, n, groupsize=-1):
     linear.weight.data = ref.t()
     return original_w, linear, s, (w - (maxq) // 2)
 
-def generate_quantized_weight(bitwidth, in_features, out_features, group_size):
+def generate_quantized_weight(bitwidth, k, n, group_size):
+    in_features = k
+    out_features = n
     original_w, linear, s, qw = gen_quant(
         bitwidth, in_features, out_features, group_size
     )
@@ -51,3 +53,22 @@ def generate_quantized_weight(bitwidth, in_features, out_features, group_size):
     zeros = torch.full((in_features // group_size, out_features), max_zero_int, dtype=torch.int32)
     cuda_old_linear.pack(linear, s.T, zeros.T, g_idx=None)
     return cuda_old_linear.qweight, cuda_old_linear.scales, cuda_old_linear.qzeros
+
+def generate_bitblas_weight(bitwidth, k, n, group_size):
+    qweight, scales, qzero = generate_quantized_weight(bitwidth, k, n, group_size)
+    bitblas_linear = BitblasLinear(
+        in_features=k,
+        out_features=n,
+        bias=False,
+        A_dtype="float16",
+        W_dtype=f"uint{bitwidth}",
+        accum_dtype="float16",
+        out_dtype="float16",
+        group_size=group_size,
+        with_scaling=True,
+        with_zeros=True,
+        zeros_mode="quantized",
+        enable_tuning=False,
+    )
+    bitblas_linear.repack_from_weights(qweight, scales, qzero, None)
+    return bitblas_linear.qweight, bitblas_linear.scales, bitblas_linear.zeros.T

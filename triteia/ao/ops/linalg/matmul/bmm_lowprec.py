@@ -222,7 +222,6 @@ def bitblas_loop_quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=N
         device=x.device,
         dtype=torch.float16,
     )
-    print(output)
     for i in range(bsz):
         output[i] = quant_matmul_248_bitblas(
             bitwidth, 

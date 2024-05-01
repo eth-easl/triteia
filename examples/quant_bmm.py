@@ -2,10 +2,8 @@ import torch
 import unittest
 from triteia.ao.ops import bmm, native_bmm_lowprec, quant_bmm_248
 from triteia.ao.ops.linalg.matmul.bmm_lowprec import loop_quant_bmm_248, bitblas_loop_quant_bmm_248
-import torch.testing as tt
 import safetensors as st
 
-torch.manual_seed(0)
 device = "cuda:1"
 
 tensors = {}

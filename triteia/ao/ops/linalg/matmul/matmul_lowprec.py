@@ -376,10 +376,6 @@ class QuantLinearInferenceOnlyFunction(torch.autograd.Function):
 ## 
 
 def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bias=None):
-    print(x[0][0])
-    print(qweight[0][0])
-    print(qzero[0][0])
-    print(scale[0][0])
     pack_factor = Fraction(bitwidth, DTYPES_BIT[BITBLAS_STORAGE_DTYPE])
     assert qweight.shape[1] // pack_factor == x.shape[1], f"qweight.shape[1] // pack_factor != x.shape[1], got {qweight.shape[1]//pack_factor} != {x.shape[1]}"
     assert qweight.shape[0] == qzero.shape[0] // pack_factor, f"qweight.shape[0] != qzero.shape[0], got {qweight.shape[0]} != {qzero.shape[0]//pack_factor}"
@@ -408,5 +404,4 @@ def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bia
     matmul = get_or_create_bitblas_operator(matmul_config)
     with torch.no_grad():
         output_tensor = matmul(x, qweight, scale=scale, zeros=qzero)
-        print(output_tensor)
     return output_tensor
