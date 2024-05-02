@@ -16,8 +16,10 @@ while not BITBLAS_OPERATOR_LOADED:
     try:
         global_operator_cache.load_from_database(BITBLAS_DATABASE_PATH, BITBLAS_TARGET)
         BITBLAS_OPERATOR_LOADED = True
-    except:
-        time.sleep(2)
+    except Exception as e:
+        print("BitBLAS Operator not loaded, retrying in 5 seconds...")
+        print(f"Error: {e}")
+        time.sleep(5)
         
 
 def convert_to_bitblas(bitwidth, module_name, tensors, zeros_mode="quantized"):
