@@ -80,6 +80,8 @@ def native_bmm_lowprec(
 ):
     assert x.dim() == 3, "x must be 3-dimensional (bsz, M, K)"
     # loop over the batch dimension
+    if x.shape[0] == 0:
+        return torch.empty(0, qweight.shape[1], device=x.device, dtype=torch.float16)
     out = []
     for i in range(x.shape[0]):
         out.append(
