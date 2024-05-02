@@ -16,6 +16,15 @@ Ks = Ns
 
 # llama 70b
 
+intermediate_size = 28672
+vocab_size = 32000
+hidden_size = 8192
+tp = 8
+
+Ms = [1]
+Ns = [128, 1024, 2048, 4096, 8192, 3584, 4000]
+Ks = Ns
+
 bitwidth = 4
 configs = []
 for M in Ms:
