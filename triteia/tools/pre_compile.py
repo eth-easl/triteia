@@ -3,29 +3,45 @@ from triteia.ao.utils.dtypes import QUANTIZED_DTYPE, BITBLAS_STORAGE_DTYPE, DTYP
 from triteia.ao.utils.bitblas_utils import get_or_create_bitblas_operator
 from multiprocessing import Pool
 from tqdm import tqdm
+
+configs = {
+    'llama_7b': {
+        'intermediate_size': 11008,
+        'vocab_size': 32000,
+        'hidden_size': 4096,
+    },
+    'llama_70b': {
+        'intermediate_size': 28672,
+        'vocab_size': 32000,
+        'hidden_size': 8192,
+    },
+    'llama-13b': {
+        'intermediate_size': 13824,
+        'vocab_size': 32000,
+        'hidden_size': 5120,
+    }
+}
+
+def get_MNKs(intermediate_size, vocab_size, hidden_size, tp):
+    Ms = [1]
+    Ns = [128, 256, 1024, 2048, 4096]
+    Ns += [hidden_size, hidden_size // tp, intermediate_size, intermediate_size // tp]
+    Ns += [vocab_size, vocab_size // tp]
+    Ks = Ns
+    return Ms, Ns, Ks
+
 # llama 7b tp=2
-
-intermediate_size = 11008
-vocab_size = 32000
-hidden_size = 4096
-tp = 2
-
-Ms = [1]
-Ns = [2048, 5504, 4096, 16000]
-Ks = Ns
-
-# llama 70b
-
-intermediate_size = 28672
-vocab_size = 32000
-hidden_size = 8192
-tp = 8
-
-Ms = [1]
-Ns = [128, 1024, 2048, 4096, 8192, 3584, 4000]
-Ks = Ns
-
+config = configs['llama-13b']
+tp_size = 2
 bitwidth = 4
+
+Ms, Ns, Ks = get_MNKs(
+    config['intermediate_size'],
+    config['vocab_size'],
+    config['hidden_size'],
+    tp=2,
+)
+
 configs = []
 for M in Ms:
     for N in Ns:

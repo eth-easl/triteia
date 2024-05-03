@@ -20,7 +20,6 @@ while not BITBLAS_OPERATOR_LOADED:
         print("BitBLAS Operator not loaded, retrying in 5 seconds...")
         print(f"Error: {e}")
         time.sleep(5)
-        
 
 def convert_to_bitblas(bitwidth, module_name, tensors, zeros_mode="quantized"):
     qweight = tensors[module_name + ".qweight"]
