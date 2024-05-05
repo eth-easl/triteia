@@ -2,6 +2,7 @@ import torch
 from triteia.ao.ops.linalg.matmul.bmm_lowprec import quant_bmm_248
 from triteia.ao.ops.linalg.matmul.bmm_lowprec import bitblas_loop_quant_bmm_248
 from triteia.ao.ops.linalg.matmul.native_mm_lowprec import native_bmm_lowprec
+from triteia.ao.ops.linalg.matmul.matmul_lowprec import quant_matmul_248_bitblas
 
 def naive_quant_select_bmm_248(bitwidth, indices,y, x, qweight, qzero, scale, g_idx=None, bias=None):
     mask = indices != -1
@@ -39,4 +40,21 @@ def bitblas_quant_select_bmm_248(bitwidth, indices,y, x, qweight, qzero, scale, 
     valid_scales = scale.index_select(0, valid_indices)
     output = bitblas_loop_quant_bmm_248(bitwidth, x, valid_qweights, valid_qzeros, valid_scales, g_idx=g_idx, bias=bias).squeeze(1)
     y.index_add_(0, y_indices, output)
+    return y
+
+def ibmm(bitwidth, indices,y, x, qweight, qzero, scale, g_idx=None, bias=None):
+    mask = indices != -1
+    valid_indices = indices[mask]
+    # weight.shape: (max_deltas, outfeatures, infeatures)
+    unique_indices = torch.unique(valid_indices)
+    for id in unique_indices:
+        idx_mask = indices == id
+        print(idx_mask)
+        inp = x[idx_mask]
+        qweight = qweight[id]
+        qzero = qzero[id]
+        scales = scale[id]
+        print(inp.shape)
+        output = quant_matmul_248_bitblas(bitwidth, inp, qweight, qzero, scales, None, None)
+        y[idx_mask] = output
     return y
