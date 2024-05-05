@@ -1,4 +1,3 @@
-bitblas @ https://github.com/microsoft/BitBLAS/releases/download/v0.0.1dev/bitblas-0.0.1.dev2+ubuntu.20.4.cu120-py3-none-any.whl
 thefuzz
 cffi
 cpplint

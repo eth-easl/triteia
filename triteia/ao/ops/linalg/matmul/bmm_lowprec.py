@@ -190,9 +190,6 @@ def quant_bmm_248(bitwidth, x, qweight, qzero, scale, g_idx, bias=None):
         qzero.stride(0),
         g_idx.stride(0),
     )
-    src = src.asm['ttir']
-    with open("quant_bmm_248_kernel.ttir", "w") as f:
-        f.write(src)
     if bias is not None:
         output += bias
     return output

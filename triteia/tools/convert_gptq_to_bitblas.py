@@ -18,7 +18,7 @@ def main(args):
     ]
     for module in tqdm(quantized_modules):
         qweight, scales, zeros, bias = convert_to_bitblas(
-            args.bitwidth, module, tensors
+            args.bitwidth, module, tensors, args.zeros_mode
         )
         new_tensors[module + ".qweight"] = qweight
         new_tensors[module + ".scales"] = scales
@@ -32,9 +32,11 @@ def main(args):
     new_tensors.update({key: tensors[key] for key in remaining_keys})        
     
     print(f"Finished converting to bitblas with bitwidth {args.bitwidth}! Saving to {args.output}...")
-    
+    for key in new_tensors.keys():
+        new_tensors[key] = new_tensors[key].contiguous()
     save_file(new_tensors, args.output)
-
+    print("All Done!")
+    
 if __name__ == "__main__":
     import os
     import argparse
@@ -43,6 +45,6 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt", type=str, required=True)
     parser.add_argument("--output", type=str, required=True)
     parser.add_argument("--bitwidth", type=int, required=True)
-
+    parser.add_argument("--zeros-mode", type=str, default="quantized")
     args = parser.parse_args()
     main(args)

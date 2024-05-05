@@ -7,7 +7,7 @@ if __name__=="__main__":
     MAX_DELTAS = 4
     TOKEN_LENGTH = 16
     HIDDEN_DIM = 4096
-    triton_weight = ".local/quantized.safetensors"
+    triton_weight = ".local/4bit_gptq.safetensors"
     tensors = {}
     prefix = "model.layers.0.self_attn.q_proj"
     with st.safe_open(triton_weight, framework="pt", device="cuda") as f:

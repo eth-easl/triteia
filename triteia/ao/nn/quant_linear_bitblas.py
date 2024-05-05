@@ -15,18 +15,8 @@ class QuantLinear(nn.Module):
         
     @torch.inference_mode()
     def forward(self, x):
-        print(self.qweight)
-        print(self.zeros)
-        print(self.scales)
-        print(x)
-        print(f"x@{x.device}@{x.dtype}: {x.shape}")
-        print(f"bitwidth: {self.bitwidth}, qweight: {self.qweight.shape}@{self.qweight.dtype}@{self.qweight.device}, qzero: {self.zeros.shape}@{self.zeros.dtype}@{self.zeros.device}, scale: {self.scales.shape}@{self.scales.dtype}@{self.scales.device}")
-        
         output = bitblas_quant_bmm_248(
             self.bitwidth, x=x, qweight=self.qweight, qzero=self.zeros, scale=self.scales)
-        
-        print(output)
-        print(output.device)
         return output
     
     @classmethod

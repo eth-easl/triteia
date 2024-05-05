@@ -7,9 +7,9 @@ https://raw.githubusercontent.com/microsoft/BitBLAS/main/python/bitblas/module/_
 
 import ctypes
 import operator
+import numpy as np
 from functools import reduce
 from logging import getLogger
-
 import torch
 import torch.nn as nn
 
@@ -25,6 +25,21 @@ from bitblas import auto_detect_nvidia_target
 BITBLAS_TARGET = auto_detect_nvidia_target()
 BITBLAS_DATABASE_PATH = get_database_path()
 
+
+def unpack_qzeros_fp16(qzeros, bits):
+    qzeros = qzeros.view(torch.int32)
+    elems_per_int32 = 32 // bits
+    unpacked_zeros = torch.zeros(
+        (qzeros.shape[0], qzeros.shape[1] * elems_per_int32),
+        dtype = torch.float16,
+        device = qzeros.device,
+        requires_grad = False,
+    )
+    for col in range(unpacked_zeros.shape[1]):
+        i = col % elems_per_int32
+        unpacked_zeros[:, col] = (qzeros[:, col // elems_per_int32] >> (bits * i)) & 0xF
+        
+    return unpacked_zeros + 1
 
 def unpack_qzeros(qzeros, bits):
     qzeros = qzeros.view(torch.int32)
@@ -42,6 +57,39 @@ def unpack_qzeros(qzeros, bits):
 
     return unpacked_zeros + 1
 
+def gptq_unpack_qzeros(qzeros, bits):
+    assert bits in [2, 4, 8], f"Unsupported bits: {bits}"
+    wf = torch.tensor(list(range(0, 32, bits)), dtype=torch.int32).unsqueeze(0)
+    qzeros = qzeros.cpu()
+    zeros = torch.bitwise_right_shift(
+        torch.unsqueeze(qzeros, 2).expand(-1, -1, 32 // bits),
+                wf.unsqueeze(0),
+        ).to(torch.int16 if bits == 8 else torch.int8)
+    
+    zeros = torch.bitwise_and(zeros, (2**bits) - 1)
+
+    zeros = zeros + 1
+    # zeros = zeros.reshape(scales.shape)
+    return zeros
+
+
+def gptq_pack_zeros(zeros, bits):
+    zeros = zeros.clone()
+    zeros -= 1
+    zeros = zeros.cpu()
+    zeros = zeros.numpy().astype(np.uint32)
+    qzeros = np.zeros((zeros.shape[0], zeros.shape[1] // 32 * bits), dtype=np.uint32)
+    assert bits in [2, 4, 8], f"Unsupported bits: {bits}"
+    i = 0
+    col = 0
+    while col < qzeros.shape[1]:
+        for j in range(i, i+(32 // bits)):
+            qzeros[:, col] |= zeros[:, j] << (bits * (j - i))
+        i += 32 // bits
+        col += 1
+    qzeros = qzeros.astype(np.int32)
+    qzeros = torch.from_numpy(qzeros).cuda()
+    return qzeros
 
 class Linear(nn.Module):
     opt_M = [1, 16, 32, 64, 128, 256, 512]
@@ -123,9 +171,7 @@ class Linear(nn.Module):
 
     def _validate_parameters(self, group_size, in_features, out_features):
         if in_features % 16 != 0 or out_features % 16 != 0:
-            raise ValueError(
-                "`in_features` and `out_features` must be divisible by 16."
-            )
+            raise ValueError("`in_features` and `out_features` must be divisible by 16.")
         if in_features % group_size != 0:
             raise ValueError("`in_features` must be divisible by `group_size`.")
 
@@ -136,10 +182,7 @@ class Linear(nn.Module):
         if self.consistent:
             self.register_buffer(
                 "weight",
-                torch.zeros(
-                    (out_features, in_features // self.group_size),
-                    dtype=self.torch_dtype,
-                ),
+                torch.zeros((out_features, in_features // self.group_size), dtype=self.torch_dtype),
             )
         else:
             self.register_buffer(
@@ -151,15 +194,10 @@ class Linear(nn.Module):
             )
             self.register_buffer(
                 "scales",
-                torch.zeros(
-                    (out_features, in_features // self.group_size),
-                    dtype=self.torch_dtype,
-                ),
+                torch.zeros((out_features, in_features // self.group_size), dtype=self.torch_dtype),
             )
             if self.zeros_mode == "quantized":
-                storage_nbit = int(
-                    "".join(c for c in self.STORAGE_DTYPE if c.isdigit())
-                )
+                storage_nbit = int("".join(c for c in self.STORAGE_DTYPE if c.isdigit()))
                 self.register_buffer(
                     "zeros",
                     torch.zeros(
@@ -179,9 +217,7 @@ class Linear(nn.Module):
                     ),
                 )
         if bias:
-            self.register_buffer(
-                "bias", torch.zeros((out_features), dtype=self.torch_dtype)
-            )
+            self.register_buffer("bias", torch.zeros((out_features), dtype=self.torch_dtype))
         else:
             self.bias = None
 
@@ -216,20 +252,14 @@ class Linear(nn.Module):
             propagate_b=propagate_b,
             zeros_mode=zeros_mode,
         )
-        self.bitblas_matmul = self._get_or_create_bitblas_operator(
-            matmul_config, enable_tuning
-        )
+        self.bitblas_matmul = self._get_or_create_bitblas_operator(matmul_config, enable_tuning)
         self.bits = self.bitblas_matmul.bit
         self.source_format = self.bitblas_matmul.source_format
 
     def _get_or_create_bitblas_operator(self, config, enable_tuning):
         if global_operator_cache.size() == 0:
-            global_operator_cache.load_from_database(
-                BITBLAS_DATABASE_PATH, BITBLAS_TARGET
-            )
-            logger.info(
-                f"Loaded {global_operator_cache.size()} operators from database."
-            )
+            global_operator_cache.load_from_database(BITBLAS_DATABASE_PATH, BITBLAS_TARGET)
+            logger.info(f"Loaded {global_operator_cache.size()} operators from database.")
 
         bitblas_matmul = global_operator_cache.get(config)
         if bitblas_matmul is None:
@@ -238,17 +268,12 @@ class Linear(nn.Module):
             if enable_tuning:
                 bitblas_matmul.hardware_aware_finetune(topk=20)
                 global_operator_cache.add(config, bitblas_matmul)
-                global_operator_cache.save_into_database(
-                    BITBLAS_DATABASE_PATH, BITBLAS_TARGET
-                )
-                print(
-                    "BitBLAS Tuning done, appended operator to global_operator_cache."
-                )
+                global_operator_cache.save_into_database(BITBLAS_DATABASE_PATH, BITBLAS_TARGET)
+                print("BitBLAS Tuning done, appended operator to global_operator_cache.")
             else:
                 print("BitBLAS Operator created.")
         else:
-            # print("BitBLAS Operator found in global_operator_cache.")
-            pass
+            print("BitBLAS Operator found in global_operator_cache.")
         return bitblas_matmul
 
     def warmup(self, topk=20):
@@ -262,15 +287,12 @@ class Linear(nn.Module):
 
         if output is None:
             output = torch.empty(
-                A.shape[:-1] + (self.out_features,), dtype=A.dtype, device=A.device
-            )
+                A.shape[:-1] + (self.out_features,), dtype=A.dtype, device=A.device)
         m = ctypes.c_int32(reduce(operator.mul, A.shape[:-1], 1))
         A = self.bitblas_matmul.transform_input(A)
         A_void = ctypes.c_void_p(A.data_ptr())
         # m is the product of the last n - 1 dimensions of A
-        self.bitblas_matmul.lib.call(
-            A_void, *self.q_params, ctypes.c_void_p(output.data_ptr()), m
-        )
+        self.bitblas_matmul.lib.call(A_void, *self.q_params, ctypes.c_void_p(output.data_ptr()), m)
 
         return output
 
@@ -315,17 +337,10 @@ class Linear(nn.Module):
             self.zeros[:, :] = intzeros.to(torch.float16)[:, :] * self.scales[:, :]
         elif self.bitblas_matmul.config.zeros_mode == "quantized":
             self.zeros = (
-                torch.Tensor(
-                    general_compress(intzeros.T.contiguous().cpu().numpy(), self.bits)
-                )
-                .to(self.qweight.device)
-                .to(self.zeros.dtype)
-                .contiguous()
-            )
+                torch.Tensor(general_compress(intzeros.T.contiguous().cpu().numpy(), self.bits)).to(
+                    self.qweight.device).to(self.zeros.dtype).contiguous())
         else:
-            raise ValueError(
-                f"Unsupported zeros type: {self.bitblas_matmul.config.zeros_mode}"
-            )
+            raise ValueError(f"Unsupported zeros type: {self.bitblas_matmul.config.zeros_mode}")
         if self.bias is not None:
             self.bias = gptq_module.bias.data.to(torch.float16).contiguous()
 

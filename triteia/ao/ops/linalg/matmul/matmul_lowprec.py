@@ -1,3 +1,4 @@
+import os
 import torch
 import triton
 from typing import Optional
@@ -379,12 +380,11 @@ def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bia
     assert qweight.shape[1] // pack_factor == x.shape[1], f"qweight.shape[1] // pack_factor != x.shape[1], got {qweight.shape[1]//pack_factor} != {x.shape[1]}"
     assert qweight.shape[0] == qzero.shape[0] // pack_factor, f"qweight.shape[0] != qzero.shape[0], got {qweight.shape[0]} != {qzero.shape[0]//pack_factor}"
     assert qzero.shape[0] // pack_factor == scale.shape[0], f"qzero.shape[1] // pack_factor != scale.shape[0], got {qzero.shape[1] // pack_factor} != {scale.shape[0]}"
-    x_dtype = "float16"
+    assert x.device==qweight.device==qzero.device==scale.device, f"x.device != qweight.device != qzero.device != scale.device, got {x.device} != {qweight.device} != {qzero.device} != {scale.device}"
+    
     M = x.shape[0]
-    N = qweight.shape[0] #   outfeatures
+    N = qweight.shape[0]                # outfeatures
     K = qweight.shape[1] // pack_factor # infeatures
-    print(f"M: {M}, N: {N}, K: {K}")
-    print(f"Bitwidth: {bitwidth}, pack_factor: {pack_factor}")
     matmul_config = bitblas.MatmulConfig(
         M=M,
         N=N,
@@ -394,6 +394,7 @@ def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bia
         W_dtype=QUANTIZED_DTYPE[bitwidth],
         accum_dtype="float16",
         out_dtype="float16",
+        layout="nt",
         with_bias=False,
         group_size=K,
         with_scaling=True,
@@ -401,5 +402,6 @@ def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bia
         zeros_mode="quantized",
     )
     matmul = get_or_create_bitblas_operator(matmul_config)
-    output_tensor = matmul(x, qweight, scale=scale, zeros=qzero)
+    with torch.no_grad():
+        output_tensor = matmul(x, qweight, scale=scale, zeros=qzero)
     return output_tensor
