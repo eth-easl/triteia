@@ -49,12 +49,13 @@ def ibmm(bitwidth, indices,y, x, qweight, qzero, scale, g_idx=None, bias=None):
     unique_indices = torch.unique(valid_indices)
     for id in unique_indices:
         idx_mask = indices == id
-        print(idx_mask)
         inp = x[idx_mask]
-        qweight = qweight[id]
-        qzero = qzero[id]
-        scales = scale[id]
-        print(inp.shape)
-        output = quant_matmul_248_bitblas(bitwidth, inp, qweight, qzero, scales, None, None)
+        output = quant_matmul_248_bitblas(
+            bitwidth, 
+            inp, 
+            qweight[id],
+            qzero[id],
+            scale[id],
+        )
         y[idx_mask] = output
     return y

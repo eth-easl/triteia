@@ -65,6 +65,9 @@ class TestMatmulLowPrec(unittest.TestCase):
             triton_output = quant_matmul_248(
                 bitwidth, x, qweight, qzeros, scales, g_idx, bias=bias
             )
+            print(qweight_bitblas.shape)
+            print(qzeros_bitblas.shape)
+            print(scales_bitblas.shape)
             bitblas_output = quant_matmul_248_bitblas(
                 bitwidth, x, qweight_bitblas, qzeros_bitblas, scales_bitblas, g_idx, bias=bias
             )

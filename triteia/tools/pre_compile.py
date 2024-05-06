@@ -23,10 +23,16 @@ configs = {
 }
 
 def get_MNKs(intermediate_size, vocab_size, hidden_size, tp):
-    Ms = [1,2,3,4,8,16,32]
+    Ms = [1,2,3,4,5,6,7,8,16,32]
     Ns = [128, 256, 1024, 2048, 4096]
     Ns += [hidden_size, hidden_size // tp, intermediate_size, intermediate_size // tp]
-    Ns += [vocab_size, vocab_size // tp]
+    Ns += [vocab_size // tp]
+    Ks = Ns
+    return Ms, Ns, Ks
+
+def get_MNKs_test():
+    Ms = [1,2,3,4,8,16,32]
+    Ns = [2048, 4096]
     Ks = Ns
     return Ms, Ns, Ks
 
@@ -41,12 +47,13 @@ Ms, Ns, Ks = get_MNKs(
     config['hidden_size'],
     tp=tp_size,
 )
+# Ms, Ns, Ks = get_MNKs_test()
 
 configs = []
 for N in Ns:
     for K in Ks:
         matmul_config = bitblas.MatmulConfig(
-                opt_M=Ms,
+                M=Ms,
                 N=N,
                 K=K,
                 fast_decoding=True,
