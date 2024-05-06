@@ -51,7 +51,7 @@ Ms, Ns, Ks = get_MNKs(
 
 configs = []
 # reverse Ns to start with the largest N
-Ns = Ns[::-1]
+# Ns = Ns[::-1]
 for N in Ns:
     for K in Ks:
         matmul_config = bitblas.MatmulConfig(
