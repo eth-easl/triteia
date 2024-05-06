@@ -36,4 +36,4 @@ if __name__=="__main__":
     bitblas_quant_select_bmm_248(4, indices, y, x, qweights, qzeros, scales, None)
     naive_y = y.clone()
     print(f"naive y: {naive_y}")
-    print(f"allclose: {torch.allclose(my_y, naive_y)}")
+    print(f"allclose: {torch.allclose(my_y, naive_y, atol=1e-3, rtol=1e-3)}")

@@ -57,5 +57,5 @@ def ibmm(bitwidth, indices,y, x, qweight, qzero, scale, g_idx=None, bias=None):
             qzero[id],
             scale[id],
         )
-        y[idx_mask] = output
+        y[idx_mask] += output
     return y
