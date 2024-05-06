@@ -23,11 +23,11 @@ configs = {
 }
 
 def get_MNKs(intermediate_size, vocab_size, hidden_size, tp):
-    Ms = [1,2,3,4,5,6,7,8,16,32]
-    Ns = [128, 256, 1024, 2048, 4096]
+    Ms = [1,2,3,4,5,6,7,8]
+    Ns = [1024, 2048, 4096]
     Ns += [hidden_size, hidden_size // tp, intermediate_size, intermediate_size // tp]
-    Ns += [vocab_size // tp]
-    Ks = Ns
+    Ks = Ns.copy()
+    Ks += [vocab_size, vocab_size // tp]
     return Ms, Ns, Ks
 
 def get_MNKs_test():
@@ -39,7 +39,7 @@ def get_MNKs_test():
 # llama 7b tp=2
 config = configs['llama-7b']
 tp_size = 2
-bitwidth = 2
+bitwidth = 4
 
 Ms, Ns, Ks = get_MNKs(
     config['intermediate_size'],
@@ -50,6 +50,8 @@ Ms, Ns, Ks = get_MNKs(
 # Ms, Ns, Ks = get_MNKs_test()
 
 configs = []
+# reverse Ns to start with the largest N
+Ns = Ns[::-1]
 for N in Ns:
     for K in Ks:
         matmul_config = bitblas.MatmulConfig(
