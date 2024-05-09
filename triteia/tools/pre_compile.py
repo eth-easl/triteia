@@ -31,30 +31,32 @@ def get_MNKs(intermediate_size, vocab_size, hidden_size, tp):
     return Ms, Ns, Ks
 
 def get_MNKs_test():
-    Ms = [1,2,3,4,8,16,32]
+    Ms = [1, 2, 3, 4, 8, 16, 32]
     Ns = [2048, 4096]
     Ks = Ns
     return Ms, Ns, Ks
 
-# llama 7b tp=2
-config = configs['llama-7b']
-tp_size = 2
-bitwidth = 4
-
-Ms, Ns, Ks = get_MNKs(
-    config['intermediate_size'],
-    config['vocab_size'],
-    config['hidden_size'],
-    tp=tp_size,
-)
-# Ms, Ns, Ks = get_MNKs_test()
-
-configs = []
-# reverse Ns to start with the largest N
-# Ns = Ns[::-1]
-for N in Ns:
-    for K in Ks:
-        matmul_config = bitblas.MatmulConfig(
+if __name__=="__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tp", type=int, default=2)
+    parser.add_argument("--bitwidth", type=int, default=2)
+    parser.add_argument("--model", type=str, default="llama-7b")
+    args = parser.parse_args()
+    
+    config = configs[args.model]
+    tp_size = args.tp
+    bitwidth = args.bitwidth
+    Ms, Ns, Ks = get_MNKs(
+        config['intermediate_size'],
+        config['vocab_size'],
+        config['hidden_size'],
+        tp=tp_size,
+    )
+    configs = []
+    for N in Ns:
+        for K in Ks:
+            matmul_config = bitblas.MatmulConfig(
                 M=Ms,
                 N=N,
                 K=K,
@@ -69,8 +71,8 @@ for N in Ns:
                 with_scaling=True,
                 with_zeros=True,
                 zeros_mode="quantized",
-        )
-        configs.append(matmul_config)
+            )
+            configs.append(matmul_config)
 
-for config in tqdm(configs):
-    get_or_create_bitblas_operator(config, enable_tuning=True)
+    for config in tqdm(configs):
+        get_or_create_bitblas_operator(config, enable_tuning=True)

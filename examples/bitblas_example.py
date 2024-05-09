@@ -1,7 +1,7 @@
-import examples.bitblas_example as bitblas_example
+import bitblas
 import torch
 
-matmul_config = bitblas_example.MatmulConfig(
+matmul_config = bitblas.MatmulConfig(
     M=1,  # M dimension
     N=1024,  # N dimension
     K=1024,  # K dimension
@@ -18,7 +18,7 @@ matmul_config = bitblas_example.MatmulConfig(
     zeros_mode=None,  # setting for how to calculating zeros
 )
 
-matmul = bitblas_example.Matmul(config=matmul_config)
+matmul = bitblas.Matmul(config=matmul_config)
 
 # Create input matrices
 input_tensor = torch.rand((1, 1024), dtype=torch.float16).cuda()

@@ -13,8 +13,11 @@ from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
 import bitblas
 from bitblas import Matmul
 
+bitblas.set_log_level("DEBUG")
+
+bitwidth = 4
 pretrained_model_dir = "facebook/opt-125m"
-quantized_model_dir = ".local/opt-125m-2bit"
+quantized_model_dir = f".local/opt-125m-{bitwidth}bit"
 
 # tokenizer = AutoTokenizer.from_pretrained(pretrained_model_dir, use_fast=True)
 # examples = [
@@ -24,9 +27,9 @@ quantized_model_dir = ".local/opt-125m-2bit"
 # ]
 
 # quantize_config = BaseQuantizeConfig(
-#     bits=2,  # quantize model to 4-bit
-#     group_size=128,  # it is recommended to set the value to 128
-#     desc_act=False,  # set to False can significantly speed up inference but the perplexity may slightly bad
+#     bits=bitwidth,  # quantize model to 2-bit
+#     group_size=128,  # it is recommended to set the value to 128,
+#     sym=False,
 # )
 
 # model = AutoGPTQForCausalLM.from_pretrained(pretrained_model_dir, quantize_config)
@@ -39,7 +42,8 @@ quantized_model_dir = ".local/opt-125m-2bit"
 # model = AutoGPTQForCausalLM.from_quantized(quantized_model_dir, device="cuda:0")
 
 module_name = "model.decoder.layers.9.self_attn.q_proj"
-with st.safe_open(os.path.join(quantized_model_dir, "gptq_model-2bit-128g.safetensors"), "pt") as f:
+
+with st.safe_open(os.path.join(quantized_model_dir, f"gptq_model-{bitwidth}bit-128g.safetensors"), "pt", device="cuda") as f:
     keys = f.keys()
     tensors = {key: f.get_tensor(key) for key in keys if module_name in key}
 
@@ -47,7 +51,7 @@ infeatures = 48 * 16
 outfeatures = 768
 
 cuda_old_linear = CudaOldQuantLinear(
-    bits=2,
+    bits=bitwidth,
     group_size=128,
     infeatures=infeatures,
     outfeatures=outfeatures,
@@ -63,7 +67,7 @@ bitblas_linear = bitblas.Linear(
     out_features=outfeatures,
     bias=False,
     A_dtype="float16",
-    W_dtype="uint2",
+    W_dtype=f"uint{bitwidth}",
     accum_dtype="float16",
     out_dtype="float16",
     group_size=128,
@@ -77,7 +81,7 @@ matmul_config = bitblas.MatmulConfig(
     K=infeatures,
     fast_decoding=True,
     A_dtype="float16",
-    W_dtype="uint2",
+    W_dtype=f"uint{bitwidth}",
     accum_dtype="float16",
     out_dtype="float16",
     layout="nt",
@@ -94,13 +98,19 @@ inp = torch.rand(1, infeatures, dtype=torch.float16, device="cuda")
 
 cuda_old_linear = cuda_old_linear.to("cuda")
 res_cuda_old = cuda_old_linear(inp)
+
+print(bitblas_linear.qweight.shape)
+print(bitblas_linear.scales.shape)
+print(bitblas_linear.zeros.shape)
+print(f"CudaOldQuantLinear output: {res_cuda_old}")
+
 res_bitblas = matmul(
     inp,
     bitblas_linear.qweight,
     bitblas_linear.scales,
     bitblas_linear.zeros
 )
-# res_bitblas = bitblas_linear(inp)
-print(f"CudaOldQuantLinear output: {res_cuda_old}")
+
+res_bitblas = bitblas_linear(inp)
 print(f"BitBLAS output: {res_bitblas}")
-# torch.testing.assert_close(res_bitblas, res_cuda_old, rtol=1, atol=1)
+torch.testing.assert_close(res_bitblas, res_cuda_old, rtol=1, atol=1)
