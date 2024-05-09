@@ -4,6 +4,8 @@ import logging
 from auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
 from transformers import AutoTokenizer, TextGenerationPipeline
 import safetensors as st
+from safetensors.torch import save_file
+
 logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s", level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S"
 )
@@ -47,7 +49,7 @@ with st.safe_open(os.path.join(quantized_model_dir, f"gptq_model-{bitwidth}bit-1
     keys = f.keys()
     tensors = {key: f.get_tensor(key) for key in keys if module_name in key}
 
-infeatures = 48 * 16
+infeatures = 768
 outfeatures = 768
 
 cuda_old_linear = CudaOldQuantLinear(
@@ -93,23 +95,34 @@ matmul_config = bitblas.MatmulConfig(
 )
 matmul = Matmul(matmul_config)
 bitblas_linear.repack_from_gptq(cuda_old_linear)
-print("repacking done")
+print("repack done")
+
+tensors = {
+    "qweight": bitblas_linear.qweight.contiguous(),
+    "scales": bitblas_linear.scales.contiguous(),
+    "qzeros": bitblas_linear.zeros.T.contiguous(),
+}
+
+save_file(tensors, os.path.join(quantized_model_dir,"bitblas.safetensors"))
+with st.safe_open(os.path.join(quantized_model_dir, "bitblas.safetensors"), "pt", device="cuda") as f:
+    keys = f.keys()
+    tensors = {key: f.get_tensor(key) for key in keys}
+bitblas_linear.qweight = tensors["qweight"]
+bitblas_linear.scales = tensors["scales"]
+bitblas_linear.zeros = tensors["qzeros"]
+
+print("BitBLAS quantized weight: ", bitblas_linear.qweight.shape)
+print("BitBLAS quantized scales: ", bitblas_linear.scales.shape)
+print("BitBLAS quantized zeros: ", bitblas_linear.zeros.shape)
+
 inp = torch.rand(1, infeatures, dtype=torch.float16, device="cuda")
 
 cuda_old_linear = cuda_old_linear.to("cuda")
 res_cuda_old = cuda_old_linear(inp)
-
-print(bitblas_linear.qweight.shape)
-print(bitblas_linear.scales.shape)
-print(bitblas_linear.zeros.shape)
 print(f"CudaOldQuantLinear output: {res_cuda_old}")
-
-res_bitblas = matmul(
-    inp,
-    bitblas_linear.qweight,
-    bitblas_linear.scales,
-    bitblas_linear.zeros
-)
+# print(bitblas_linear.qweight.shape)
+# print(bitblas_linear.scales.shape)
+# print(bitblas_linear.zeros.shape)
 
 res_bitblas = bitblas_linear(inp)
 print(f"BitBLAS output: {res_bitblas}")
