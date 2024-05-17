@@ -5,43 +5,40 @@ from auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
 from transformers import AutoTokenizer, TextGenerationPipeline
 import safetensors as st
 from safetensors.torch import save_file
-
-logging.basicConfig(
-    format="%(asctime)s %(levelname)s [%(name)s] %(message)s", level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S"
-)
 from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
     QuantLinear as CudaOldQuantLinear,
 )
 import bitblas
 from bitblas import Matmul
 
+logging.basicConfig(
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s", level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S"
+)
+
 bitblas.set_log_level("DEBUG")
 
-bitwidth = 4
+bitwidth = 2
 pretrained_model_dir = "facebook/opt-125m"
 quantized_model_dir = f".local/opt-125m-{bitwidth}bit"
 
-# tokenizer = AutoTokenizer.from_pretrained(pretrained_model_dir, use_fast=True)
-# examples = [
-#     tokenizer(
-#         "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
-#     )
-# ]
+tokenizer = AutoTokenizer.from_pretrained(pretrained_model_dir, use_fast=True)
+examples = [
+    tokenizer(
+        "auto-gptq is an easy-to-use model quantization library with user-friendly apis, based on GPTQ algorithm."
+    )
+]
 
-# quantize_config = BaseQuantizeConfig(
-#     bits=bitwidth,  # quantize model to 2-bit
-#     group_size=128,  # it is recommended to set the value to 128,
-#     sym=False,
-# )
+quantize_config = BaseQuantizeConfig(
+    bits=bitwidth,  # quantize model to 2-bit
+    group_size=128,  # it is recommended to set the value to 128,
+    sym=False,
+)
 
-# model = AutoGPTQForCausalLM.from_pretrained(pretrained_model_dir, quantize_config)
+model = AutoGPTQForCausalLM.from_pretrained(pretrained_model_dir, quantize_config)
 
-# model.quantize(examples)
-# # save quantized model using safetensors
-# model.save_quantized(quantized_model_dir, use_safetensors=True)
-
-# # load quantized model to the first GPU
-# model = AutoGPTQForCausalLM.from_quantized(quantized_model_dir, device="cuda:0")
+model.quantize(examples)
+# save quantized model using safetensors
+model.save_quantized(quantized_model_dir, use_safetensors=True)
 
 module_name = "model.decoder.layers.9.self_attn.q_proj"
 
@@ -98,15 +95,16 @@ bitblas_linear.repack_from_gptq(cuda_old_linear)
 print("repack done")
 
 tensors = {
-    "qweight": bitblas_linear.qweight.contiguous(),
-    "scales": bitblas_linear.scales.contiguous(),
-    "qzeros": bitblas_linear.zeros.T.contiguous(),
+    "qweight": bitblas_linear.qweight,
+    "scales": bitblas_linear.scales,
+    "qzeros": bitblas_linear.zeros,
 }
 
 save_file(tensors, os.path.join(quantized_model_dir,"bitblas.safetensors"))
 with st.safe_open(os.path.join(quantized_model_dir, "bitblas.safetensors"), "pt", device="cuda") as f:
     keys = f.keys()
     tensors = {key: f.get_tensor(key) for key in keys}
+    
 bitblas_linear.qweight = tensors["qweight"]
 bitblas_linear.scales = tensors["scales"]
 bitblas_linear.zeros = tensors["qzeros"]
@@ -120,10 +118,13 @@ inp = torch.rand(1, infeatures, dtype=torch.float16, device="cuda")
 cuda_old_linear = cuda_old_linear.to("cuda")
 res_cuda_old = cuda_old_linear(inp)
 print(f"CudaOldQuantLinear output: {res_cuda_old}")
-# print(bitblas_linear.qweight.shape)
-# print(bitblas_linear.scales.shape)
-# print(bitblas_linear.zeros.shape)
 
-res_bitblas = bitblas_linear(inp)
+res_bitblas = matmul(
+    inp, 
+    bitblas_linear.qweight, 
+    scale=bitblas_linear.scales,
+    zeros=bitblas_linear.zeros
+)
+
 print(f"BitBLAS output: {res_bitblas}")
 torch.testing.assert_close(res_bitblas, res_cuda_old, rtol=1, atol=1)

@@ -4,6 +4,7 @@ from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
     QuantLinear as CudaOldQuantLinear,
 )
 from triteia.ao.nn.linear_bitblas import Linear as BitblasLinear
+
 def gen_quant(bitwidth, k, n, groupsize=-1):
     maxq = 2**bitwidth
     w = torch.randn((k, n), dtype=torch.half, device="cpu")
@@ -71,4 +72,4 @@ def generate_bitblas_weight(bitwidth, k, n, group_size):
         enable_tuning=False,
     )
     bitblas_linear.repack_from_weights(qweight, scales, qzero, None)
-    return bitblas_linear.qweight, bitblas_linear.scales, bitblas_linear.zeros.T
+    return bitblas_linear.qweight.cuda(), bitblas_linear.scales.cuda(), bitblas_linear.zeros.T.cuda()

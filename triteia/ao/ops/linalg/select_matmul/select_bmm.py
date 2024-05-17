@@ -42,7 +42,7 @@ def bitblas_quant_select_bmm_248(bitwidth, indices,y, x, qweight, qzero, scale, 
     y.index_add_(0, y_indices, output)
     return y
 
-def ibmm(bitwidth, indices,y, x, qweight, qzero, scale, g_idx=None, bias=None):
+def ibmm(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, bias=None):
     mask = indices != -1
     valid_indices = indices[mask]
     # weight.shape: (max_deltas, outfeatures, infeatures)
@@ -58,4 +58,24 @@ def ibmm(bitwidth, indices,y, x, qweight, qzero, scale, g_idx=None, bias=None):
             scale[id],
         )
         y[idx_mask] += output
+    return y
+
+def vectorized_ibmm(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, bias=None):
+    mask = indices != -1
+    valid_indices = indices[mask]
+    # weight.shape: (max_deltas, outfeatures, infeatures)
+    unique_indices = torch.unique(valid_indices)
+    for id in unique_indices:
+        with torch.cuda.stream(torch.cuda.Stream()):
+            idx_mask = indices == id
+            inp = x[idx_mask]
+            output = quant_matmul_248_bitblas(
+                bitwidth, 
+                inp, 
+                qweight[id],
+                qzero[id],
+                scale[id],
+            )
+            y[idx_mask] += output
+    torch.cuda.synchronize()
     return y
