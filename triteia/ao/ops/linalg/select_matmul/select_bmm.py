@@ -65,8 +65,11 @@ def vectorized_ibmm(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, 
     valid_indices = indices[mask]
     # weight.shape: (max_deltas, outfeatures, infeatures)
     unique_indices = torch.unique(valid_indices)
+    streams = []
     for id in unique_indices:
-        with torch.cuda.stream(torch.cuda.Stream()):
+        stream = torch.cuda.Stream()
+        streams.append(stream)
+        with torch.cuda.stream(stream):
             idx_mask = indices == id
             inp = x[idx_mask]
             output = quant_matmul_248_bitblas(
@@ -77,5 +80,6 @@ def vectorized_ibmm(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, 
                 scale[id],
             )
             y[idx_mask] += output
-    torch.cuda.synchronize()
+    [torch.cuda.current_stream().wait_stream(stream) for stream in streams]
+    # torch.cuda.synchronize()
     return y

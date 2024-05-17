@@ -5,8 +5,8 @@ from triteia.ao.ops.linalg.select_matmul.select_bmm import vectorized_ibmm
 
 from timeit import default_timer as timer
 def benchmark():
-    Ns = [2048]
-    Ks = [2048]
+    Ns = [4096]
+    Ks = [4096]
     bitwidth = 4
     num_models = 4
     num_reqs = 16
@@ -21,7 +21,7 @@ def benchmark():
             x = torch.rand((num_reqs, K), dtype=torch.float16, device="cuda")
             
             indices = torch.randint(-1, num_models, (num_reqs,), device="cuda")
-            
+            print(indices)
             y_1 = torch.zeros((num_reqs, N), dtype=torch.float16, device="cuda")
             start = timer()
             ibmm(bitwidth, indices, y_1, x, qweight, qzero, scales)
@@ -35,5 +35,6 @@ def benchmark():
             assert torch.allclose(y_1, y_2)
             print(y_1)
             print(y_2)
+            
 if __name__=="__main__":
     benchmark()
