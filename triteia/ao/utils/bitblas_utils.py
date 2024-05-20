@@ -102,6 +102,3 @@ def get_or_create_bitblas_operator(config, enable_tuning=True, type="matmul"):
     else:
         pass
     return bitblas_matmul
-
-def dequant_zeros(bitwidth):
-    pass

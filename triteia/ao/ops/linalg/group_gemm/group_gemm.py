@@ -60,7 +60,7 @@ class GroupMatmulWeightOnlyDequantizeConfig:
     accum_dtype: str = "float16"
     bit: int = 4
     storage_dtype: str = "int8"
-    source_format: Literal["int", "uint", "fp", "nf"] = "int"
+    source_format: Literal["int", "uint", "fp", "nf"] = "uint"
     with_scaling: bool = False
     with_zeros: bool = False
     group_size: int = -1
@@ -81,29 +81,7 @@ class GroupMatmulWeightOnlyDequantizeConfig:
         # otherwise, M is not hashable
         object.__setattr__(self, "M", tuple(
             self.M) if isinstance(self.M, list) else self.M)
-        if isinstance(self.propagate_a, bool):
-            object.__setattr__(
-                self,
-                "propagate_a",
-                (TransformKind.IntraWarpTransform
-                 if self.propagate_a else TransformKind.NonTransform),
-            )
-        elif isinstance(self.propagate_a, int):
-            object.__setattr__(self, "propagate_a",
-                               TransformKind(self.propagate_a))
-
-        if isinstance(self.propagate_b, bool):
-            object.__setattr__(
-                self,
-                "propagate_b",
-                (TransformKind.IntraWarpTransform
-                 if self.propagate_b else TransformKind.NonTransform),
-            )
-        elif isinstance(self.propagate_b, int):
-            object.__setattr__(self, "propagate_b",
-                               TransformKind(self.propagate_b))
-
-
+        
 class GroupMatmulWeightOnlyDequantize(Operator):
     def __init__(
         self,
@@ -235,7 +213,7 @@ class GroupMatmulWeightOnlyDequantize(Operator):
 
         if self.lib is None:
             self._forward_from_torch_func(*args)
-        self._forward_from_prebuild_lib(*args, *dynamic_symbolic)
+        self._forward_from_prebuild_lib(*args)
         return output
 
     def __call__(self, A, W, indices, scale=None, zeros=None, output=None):
