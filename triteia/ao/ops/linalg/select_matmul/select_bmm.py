@@ -4,6 +4,8 @@ from triteia.ao.ops.linalg.matmul.bmm_lowprec import bitblas_loop_quant_bmm_248
 from triteia.ao.ops.linalg.matmul.native_mm_lowprec import native_bmm_lowprec
 from triteia.ao.ops.linalg.matmul.matmul_lowprec import quant_matmul_248_bitblas
 
+
+
 def naive_quant_select_bmm_248(bitwidth, indices,y, x, qweight, qzero, scale, g_idx=None, bias=None):
     mask = indices != -1
     valid_indices = indices[mask]
@@ -60,6 +62,7 @@ def ibmm(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, bias=None):
         y[idx_mask] += output
     return y
 
+
 def vectorized_ibmm(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, bias=None):
     mask = indices != -1
     valid_indices = indices[mask]
@@ -80,6 +83,6 @@ def vectorized_ibmm(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, 
                 scale[id],
             )
             y[idx_mask] += output
-    [torch.cuda.current_stream().wait_stream(stream) for stream in streams]
+    # [torch.cuda.current_stream().wait_stream(stream) for stream in streams]
     # torch.cuda.synchronize()
     return y

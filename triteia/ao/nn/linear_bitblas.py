@@ -271,7 +271,7 @@ class Linear(nn.Module):
                 global_operator_cache.save_into_database(BITBLAS_DATABASE_PATH, BITBLAS_TARGET)
                 print("BitBLAS Tuning done, appended operator to global_operator_cache.")
             else:
-                print("BitBLAS Operator created.")
+                pass
         else:
             print("BitBLAS Operator found in global_operator_cache.")
         return bitblas_matmul

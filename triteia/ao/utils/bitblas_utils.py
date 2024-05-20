@@ -5,12 +5,18 @@ from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
 from bitblas.cache.operator import global_operator_cache
 from bitblas import auto_detect_nvidia_target
 import time
+from triteia.ao.ops.linalg.group_gemm import GroupMatmulWeightOnlyDequantize, GroupMatmulWeightOnlyDequantizeConfig
+
 if "BITBLAS_TARGET" not in os.environ:
     BITBLAS_TARGET = auto_detect_nvidia_target()
 else:
     BITBLAS_TARGET = os.environ["BITBLAS_TARGET"]
 BITBLAS_DATABASE_PATH = os.path.join(os.path.expanduser("~"), ".cache", "bitblas")
 BITBLAS_OPERATOR_LOADED = False
+from triteia.ao.ops.linalg.group_gemm import GroupMatmulWeightOnlyDequantize
+
+bitblas.GroupMatmulWeightOnlyDequantizeConfig = GroupMatmulWeightOnlyDequantizeConfig
+bitblas.GroupMatmulWeightOnlyDequantize = GroupMatmulWeightOnlyDequantize
 
 while not BITBLAS_OPERATOR_LOADED:
     try:
@@ -58,17 +64,27 @@ def convert_to_bitblas(bitwidth, module_name, tensors, zeros_mode="quantized"):
         bitblas_linear.bias,
     )
 
-def get_or_create_bitblas_operator(config, enable_tuning=True):
+def get_or_create_bitblas_operator(config, enable_tuning=True, type="matmul"):
     bitblas_matmul = global_operator_cache.get(config)
     if bitblas_matmul is None:
         print("BitBLAS Operator not found in global_operator_cache, creating...")
         print("Config: ", config)
         # don't tune it here so we can pass parameters
-        bitblas_matmul = bitblas.Matmul(
-            config=config, 
-            target=BITBLAS_TARGET,
-            enable_tuning=False,
-        )
+        if type == "matmul":
+            bitblas_matmul = bitblas.Matmul(
+                config=config, 
+                target=BITBLAS_TARGET,
+                enable_tuning=False,
+            )
+        elif type == "group_gemm":
+            bitblas_matmul = GroupMatmulWeightOnlyDequantize(
+                config=config,
+                target=BITBLAS_TARGET,
+                enable_tuning=False,
+            )
+        else:
+            raise ValueError("Unknown type: ", type)
+        
         if enable_tuning:
             bitblas_matmul.hardware_aware_finetune(
                 topk=20,
