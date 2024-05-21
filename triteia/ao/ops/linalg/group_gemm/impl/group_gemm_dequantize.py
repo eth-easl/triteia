@@ -1,6 +1,6 @@
 # pre-transformed tir expression of group_gemm
 import tvm
-from tvm import te
+from tvm import te, topi
 from bitblas.quantization import (
     _tir_packed_int_to_int_convert,
     _tir_packed_to_signed_convert,
@@ -29,30 +29,25 @@ def group_matmul_nt_dequantize_b(
     with_bias=False,
     zeros_mode="original",
 ):
-    if not isinstance(M, int):
-        M = tvm.te.var("m")
-    if with_bias:
-        raise ValueError("with_bias is not supported")
-
     storage_nbit = int("".join(c for c in storage_dtype if c.isdigit()))
     storage_type = str("".join(c for c in storage_dtype if not c.isdigit()))
     n_float_per_elem = storage_nbit // bit
     if group_size == -1:
         group_size = K
-
-    indices = te.placeholder((M,), dtype="int32", name="indices")
-
+    
     A = te.placeholder((M, K), name="A", dtype=in_dtype)
     B = te.placeholder((num_models, N, K // storage_nbit * bit), name="B", dtype=storage_dtype)
-    Y = te.placeholder((M, N), name="Y", dtype=accum_dtype)
+    Indices = te.placeholder((M, ), name="Indices", dtype="int32")
     Scale = te.placeholder((num_models, N, K // group_size), name="Scale", dtype=in_dtype)
     Zeros = te.placeholder((num_models, N, K // group_size), name="Zeros", dtype=in_dtype)
-    QZeros = te.placeholder((num_models, (K // group_size), N // storage_nbit * bit),name="QZeros",dtype=storage_dtype)
+    QZeros = te.placeholder((num_models, (K // group_size), N // storage_nbit * bit),name="QZeros", dtype=storage_dtype)
+    
+    Y = te.placeholder((M, N), name="Y", dtype=out_dtype)
 
-    def qzeros_dequantize(b, k, n):
+    def qzeros_dequantize(i, k, n):
         return _tir_packed_to_unsigned_convert(storage_type, storage_nbit)(
             bit,
-            QZeros[b, k, n // n_float_per_elem],
+            QZeros[i, k, n // n_float_per_elem],
             n % n_float_per_elem,
             dtype=storage_dtype,
         )
@@ -63,63 +58,56 @@ def group_matmul_nt_dequantize_b(
         name="Dequantize_zeros",
     )
     
-    def decode_func(n_m, n, k):
+    def decode_func(i, n, k):
         if with_zeros and zeros_mode == "quantized":
             w = _tir_packed_to_unsigned_convert_with_zeros(storage_type, storage_nbit)(
                 bit,
-                B[n_m, n, k // n_float_per_elem],
+                B[i, n, k // n_float_per_elem],
                 k % n_float_per_elem,
-                Dequantize_qzeros[n_m, k // group_size, n],
+                Dequantize_qzeros[i, k // group_size, n],
                 dtype=in_dtype,
             )
         else:
             raise ValueError("Unsupported source_format: {}".format(source_format))
+
         if not with_scaling:
             return w
+
         if not with_zeros:
-            return w * Scale[n_m, n, k // group_size]
+            return w * Scale[i, n, k // group_size]
+
         if zeros_mode == "original":
-            w = (w - Zeros[n_m, n, k // group_size]) * Scale[n, k // group_size]
+            w = (w - Zeros[i, n, k // group_size]) * Scale[n, k // group_size]
         elif zeros_mode == "rescale":
-            w = w * Scale[n_m, n, k // group_size] - Zeros[n, k // group_size]
+            w = w * Scale[i, n, k // group_size] - Zeros[n, k // group_size]
         elif zeros_mode == "quantized":
-            w = w * Scale[n_m, n, k // group_size]
+            w = w * Scale[i, n, k // group_size]
         else:
             raise ValueError("Unsupported zeros_mode: {}".format(zeros_mode))
         return w
-
+    
     B_decode = te.compute((num_models, N, K), decode_func, name="B_decode")
-
-    # k = te.reduce_axis((0, K), name="k")
-    # C = te.compute(
-    #     (num_reqs, N),
-    #     lambda i, j: te.sum(
-    #         A[i, k].astype(accum_dtype) * B_decode[indices[i], k, j].astype(accum_dtype), axis=k
-    #     ),
-    #     name="C"
-    # )
-    # D = te.compute(
-    #     (num_reqs, N),
-    #     lambda i, j: C[i, j] + Y[i, j],
-    #     name="D",
-    # )
-    # E = te.compute((num_reqs, N), lambda i, j: D[i, j].astype(out_dtype), name="E")
-
-    args = [indices, A, B, Y]
-    last_output = Y
+    
+    k = te.reduce_axis((0, K), name="k")
+    C = te.compute(
+        (M, N),
+        lambda i, j: te.sum(
+            A[i, k].astype(accum_dtype) * B_decode[Indices[i], j, k].astype(accum_dtype), axis=k),
+        name="C",
+    )
+    D = te.compute((M, N), lambda i, j: (C[i, j]).astype(out_dtype), name="D")
+    
+    args = [A, B, Indices]
+    last_output = D
     if with_scaling:
         args.append(Scale)
-
     if with_zeros:
         if zeros_mode == "quantized":
             args.append(QZeros)
         else:
             args.append(Zeros)
-    args.append(Y)
-
-    for idx, arg in enumerate(args):
-        print(f"Arg {idx}: Type={type(arg)}, Value={arg}")
-
+    args.append(last_output)
+    
     func = te.create_prim_func(args).with_attr(
         "dequantize_info",
         {
@@ -139,7 +127,6 @@ def group_matmul_nt_dequantize_b(
             }
         },
     )
-    # print(func.script())
     return tvm.IRModule.from_expr(func)
 
 def select_implementation(

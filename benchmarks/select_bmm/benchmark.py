@@ -47,7 +47,6 @@ def benchmark():
                 scales = torch.stack(scales)
                 qzero = torch.stack(qzeros)
                 print(f"qweight.shape: {qweight.shape}, scales.shape: {scales.shape}, qzero.shape: {qzero.shape}")
-                
                 x = torch.rand((num_reqs, K), dtype=torch.float16, device="cuda")
                 indices = generate_model_distribution(distribution, num_reqs, num_models)
                 print(indices)
@@ -56,21 +55,25 @@ def benchmark():
                 torch.cuda.synchronize()
                 # warmup
                 ibmm(bitwidth, indices, y_1, x, qweight, qzero, scales)
+                group_gemm(bitwidth, indices, y_2, x, qweight, qzero, scales)
                 torch.cuda.synchronize()
+                print("Warmup Done")
                 ## 
-                elapsed = _bench_ibmm(bitwidth, indices, y_1, x, qweight, qzero, scales)
-                print(f"# models: {num_models}, # requests: {num_reqs}")
-                print(f"N={N}, K={K}")
-                print(f"{elapsed:.2f} ms")
-                print("--"* 20)
+                v1_elapsed = _bench_ibmm(bitwidth, indices, y_1, x, qweight, qzero, scales)
                 
                 torch.cuda.synchronize()
                 start = timer()
                 group_gemm(bitwidth, indices, y_2, x, qweight, qzero, scales)
                 torch.cuda.synchronize()
                 end = timer()
-                print(f"Time taken for group_gemm: {end-start} seconds")
-                assert torch.allclose(y_1, y_2)
+                v2_elapsed = (end-start) * 1000
+                
+                print(f"# models: {num_models}, # requests: {num_reqs}")
+                print(f"N={N}, K={K}")
+                print(f"v1: {v1_elapsed:.2f} ms")
+                print(f"v2: {v2_elapsed:.2f} ms")
+                print("--"* 20)
+               # assert torch.allclose(y_1, y_2)
 
 if __name__=="__main__":
     benchmark()

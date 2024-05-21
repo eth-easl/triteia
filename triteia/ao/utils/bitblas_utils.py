@@ -87,7 +87,7 @@ def get_or_create_bitblas_operator(config, enable_tuning=True, type="matmul"):
         
         if enable_tuning:
             bitblas_matmul.hardware_aware_finetune(
-                topk=20,
+                topk=5,
                 parallel_build=True
             )
             global_operator_cache.add(config, bitblas_matmul)

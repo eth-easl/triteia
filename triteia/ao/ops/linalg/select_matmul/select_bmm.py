@@ -5,7 +5,6 @@ from triteia.ao.ops.linalg.matmul.native_mm_lowprec import native_bmm_lowprec
 from triteia.ao.ops.linalg.matmul.matmul_lowprec import quant_matmul_248_bitblas
 
 
-
 def naive_quant_select_bmm_248(bitwidth, indices,y, x, qweight, qzero, scale, g_idx=None, bias=None):
     mask = indices != -1
     valid_indices = indices[mask]

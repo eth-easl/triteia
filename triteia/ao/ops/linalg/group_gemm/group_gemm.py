@@ -11,6 +11,7 @@ from typing import Any, List, Literal, Optional, Tuple, Union
 from bitblas.utils.target_detector import auto_detect_nvidia_target
 from bitblas.ops.lop3_permutate import LOP3Permutate, LOP3PermutateConfig
 from bitblas.base.utils import tensor_replace_dp4a, tensor_remove_make_int4
+from bitblas.ops.ladder_permutate import LadderPermutate, LadderPermutateConfig
 
 from .impl.group_gemm_dequantize import select_implementation
 
@@ -79,8 +80,7 @@ class GroupMatmulWeightOnlyDequantizeConfig:
     def __post_init__(self):
         # set M to tuple if it is list
         # otherwise, M is not hashable
-        object.__setattr__(self, "M", tuple(
-            self.M) if isinstance(self.M, list) else self.M)
+        object.__setattr__(self, "M", tuple(self.M) if isinstance(self.M, list) else self.M)
         
 class GroupMatmulWeightOnlyDequantize(Operator):
     def __init__(
@@ -110,7 +110,41 @@ class GroupMatmulWeightOnlyDequantize(Operator):
         
         if not from_database:
             self._build_default_module(target)
+        if self.propagate_a:
+            ladder_permutate_config = LadderPermutateConfig(
+                M=self.M,
+                N=self.K,
+                datatype=self.in_dtype,
+                storage_dtype=self.in_dtype,
+                propagate_kind="A",
+                transpose_matrix=False,
+                transform_kind=self.propagate_a,
+            )
+            self.ladder_permutate_a = LadderPermutate(
+                config=ladder_permutate_config,
+                target=tvm.target.Target("llvm"),
+            )
+        else:
+            self.ladder_permutate_a = None
 
+        if self.propagate_b:
+            ladder_permutate_config = LadderPermutateConfig(
+                M=self.N,
+                N=self.K,
+                datatype=self.in_dtype,
+                dequantize_bits=self.bit,
+                storage_dtype=self.storage_dtype,
+                propagate_kind="B",
+                transpose_matrix=self.layout == "nt",
+                transform_kind=self.propagate_b,
+            )
+            self.ladder_permutate_b = LadderPermutate(
+                config=ladder_permutate_config,
+                target=tvm.target.Target("llvm"),
+            )
+        else:
+            self.ladder_permutate_b = None
+            
         # fast decoding
         lop3_permutate_config = LOP3PermutateConfig(
             M=self.N,
@@ -179,7 +213,7 @@ class GroupMatmulWeightOnlyDequantize(Operator):
         return [int(i) for i in self.prim_func.buffer_map[self.prim_func.params[1]].shape]
 
     def transform_input(self, input_tensor):
-        if self.propagate_a is not TransformKind.NonTransform:
+        if self.propagate_a != TransformKind.NonTransform:
             # check workspace size
             if input_tensor.numel() > WORKSPACE_SIZE:
                 raise ValueError(
