@@ -33,7 +33,7 @@ def prepare_fp16_weights(K, N, num_models):
 def _bench_ibmm(bitwidth, indices, y, x, qweight, qzero, scales, base_weight):
     torch.cuda.synchronize()
     start = timer()
-    # y = torch.matmul(x, base_weight.T)
+    y = torch.matmul(x, base_weight.T)
     ibmm(bitwidth, indices, y, x, qweight, qzero, scales)
     torch.cuda.synchronize()
     end = timer()
@@ -60,7 +60,7 @@ def benchmark():
     Ns = [4096]
     Ks = [4096]
     bitwidth = 2
-    max_num_models = [20]
+    max_num_models = [40]
     num_reqs = 100
     distribution = "uniform"
     
@@ -70,6 +70,9 @@ def benchmark():
                 # generate num_models quantized weights
                 qweight, scales, qzero = prepare_quantized_weights(bitwidth, K, N, num_models)
                 fp16_weights = prepare_fp16_weights(K, N, num_models)
+                qweight = qweight.contiguous()
+                scales = scales.contiguous()
+                qzero = qzero.contiguous()
                 print(f"qweight.shape: {qweight.shape}, scales.shape: {scales.shape}, qzero.shape: {qzero.shape}")
                 x = torch.rand((num_reqs, K), dtype=torch.float16, device="cuda")
                 indices = generate_model_distribution(distribution, num_reqs, num_models)

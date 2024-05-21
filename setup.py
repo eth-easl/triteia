@@ -1,6 +1,7 @@
 import io
 import os
 from setuptools import find_packages, setup
+from torch.utils import cpp_extension
 
 
 def read(*paths, **kwargs):
@@ -40,4 +41,18 @@ setup(
     install_requires=read_requirements("requirements.txt"),
     entry_points={"dstool": ["dstool = dstool.__main__:main"]},
     extras_require={"test": read_requirements("requirements-test.txt")},
+    ext_modules=[
+        cpp_extension.CUDAExtension(
+            "marlin_cuda",
+            [
+                "triteia/csrc/marlin/marlin_cuda.cpp",
+                "triteia/csrc/marlin/marlin_cuda_kernel.cu",
+                "triteia/csrc/marlin/marlin_cuda_kernel_nm.cu",
+            ],
+            extra_compile_args={
+                "nvcc": ["-arch=sm_86", "--ptxas-options=-v", "-lineinfo"]
+            },
+        ),
+    ],
+    cmdclass={"build_ext": cpp_extension.BuildExtension},
 )
