@@ -91,7 +91,6 @@ class GroupMatmulWeightOnlyDequantize(Operator):
         enable_tuning: bool = False,
         from_database: bool = False,
     ):
-        print(config)
         super().__init__(name, config, target)
         if target is None:
             target = auto_detect_nvidia_target()
@@ -229,7 +228,7 @@ class GroupMatmulWeightOnlyDequantize(Operator):
         args = []
         args.append(self.transform_input(A))
         args.append(W)
-        args.append(indices)
+        # args.append(indices)
         if scale is not None:
             args.append(scale)
         if zeros is not None:
@@ -238,6 +237,7 @@ class GroupMatmulWeightOnlyDequantize(Operator):
             output = torch.empty(
                 A.shape[:-1] + (self.N,), dtype=torch.float16, device=A.device
             )
+        print(output.shape)
         args.append(output)
         dynamic_symbolic = []
         if self.dynamic_range is not None:

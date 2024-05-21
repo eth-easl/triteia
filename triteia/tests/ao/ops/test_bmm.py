@@ -33,7 +33,7 @@ class TestBMMLowPrec(unittest.TestCase):
                 self.tensors[key] = f.get_tensor(key)
 
     def test_lowprec_bmm(self):
-        prefix = "model.layers.0.self_attn.q_proj"
+        prefix = "model.layers.9.self_attn.q_proj"
         qweight = self.tensors[f"{prefix}.qweight"]
         qzero = self.tensors[f"{prefix}.qzeros"]
         scale = self.tensors[f"{prefix}.scales"]

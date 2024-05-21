@@ -1,11 +1,10 @@
 import os
+import time
 import bitblas
 from fractions import Fraction
-from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
 from bitblas.cache.operator import global_operator_cache
 from bitblas import auto_detect_nvidia_target
-import time
-from triteia.ao.ops.linalg.group_gemm import GroupMatmulWeightOnlyDequantize, GroupMatmulWeightOnlyDequantizeConfig
+from triteia.ao.utils.dtypes import QUANTIZED_DTYPE
 
 if "BITBLAS_TARGET" not in os.environ:
     BITBLAS_TARGET = auto_detect_nvidia_target()
@@ -13,10 +12,9 @@ else:
     BITBLAS_TARGET = os.environ["BITBLAS_TARGET"]
 BITBLAS_DATABASE_PATH = os.path.join(os.path.expanduser("~"), ".cache", "bitblas")
 BITBLAS_OPERATOR_LOADED = False
-from triteia.ao.ops.linalg.group_gemm import GroupMatmulWeightOnlyDequantize
 
-bitblas.GroupMatmulWeightOnlyDequantizeConfig = GroupMatmulWeightOnlyDequantizeConfig
-bitblas.GroupMatmulWeightOnlyDequantize = GroupMatmulWeightOnlyDequantize
+# bitblas.GroupMatmulWeightOnlyDequantizeConfig = GroupMatmulWeightOnlyDequantizeConfig
+# bitblas.GroupMatmulWeightOnlyDequantize = GroupMatmulWeightOnlyDequantize
 
 while not BITBLAS_OPERATOR_LOADED:
     try:
@@ -76,18 +74,18 @@ def get_or_create_bitblas_operator(config, enable_tuning=True, type="matmul"):
                 target=BITBLAS_TARGET,
                 enable_tuning=False,
             )
-        elif type == "group_gemm":
-            bitblas_matmul = GroupMatmulWeightOnlyDequantize(
-                config=config,
-                target=BITBLAS_TARGET,
-                enable_tuning=False,
-            )
+        # elif type == "group_gemm":
+        #     bitblas_matmul = GroupMatmulWeightOnlyDequantize(
+        #         config=config,
+        #         target=BITBLAS_TARGET,
+        #         enable_tuning=False,
+        #     )
         else:
             raise ValueError("Unknown type: ", type)
         
         if enable_tuning:
             bitblas_matmul.hardware_aware_finetune(
-                topk=5,
+                topk=25,
                 parallel_build=True
             )
             global_operator_cache.add(config, bitblas_matmul)

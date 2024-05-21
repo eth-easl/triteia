@@ -37,13 +37,11 @@ def group_matmul_nt_dequantize_b(
     
     A = te.placeholder((M, K), name="A", dtype=in_dtype)
     B = te.placeholder((num_models, N, K // storage_nbit * bit), name="B", dtype=storage_dtype)
-    Indices = te.placeholder((M, ), name="Indices", dtype="int32")
     Scale = te.placeholder((num_models, N, K // group_size), name="Scale", dtype=in_dtype)
     Zeros = te.placeholder((num_models, N, K // group_size), name="Zeros", dtype=in_dtype)
+    
     QZeros = te.placeholder((num_models, (K // group_size), N // storage_nbit * bit),name="QZeros", dtype=storage_dtype)
     
-    Y = te.placeholder((M, N), name="Y", dtype=out_dtype)
-
     def qzeros_dequantize(i, k, n):
         return _tir_packed_to_unsigned_convert(storage_type, storage_nbit)(
             bit,
@@ -57,10 +55,12 @@ def group_matmul_nt_dequantize_b(
         qzeros_dequantize,
         name="Dequantize_zeros",
     )
-    
+
     def decode_func(i, n, k):
         if with_zeros and zeros_mode == "quantized":
-            w = _tir_packed_to_unsigned_convert_with_zeros(storage_type, storage_nbit)(
+            w = _tir_packed_to_unsigned_convert_with_zeros(
+                storage_type, storage_nbit
+            )(
                 bit,
                 B[i, n, k // n_float_per_elem],
                 k % n_float_per_elem,
@@ -92,12 +92,12 @@ def group_matmul_nt_dequantize_b(
     C = te.compute(
         (M, N),
         lambda i, j: te.sum(
-            A[i, k].astype(accum_dtype) * B_decode[Indices[i], j, k].astype(accum_dtype), axis=k),
+            A[i, k].astype(accum_dtype) * B_decode[i, j, k].astype(accum_dtype), axis=k),
         name="C",
     )
     D = te.compute((M, N), lambda i, j: (C[i, j]).astype(out_dtype), name="D")
     
-    args = [A, B, Indices]
+    args = [A, B]
     last_output = D
     if with_scaling:
         args.append(Scale)

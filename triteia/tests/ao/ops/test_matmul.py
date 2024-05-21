@@ -25,7 +25,7 @@ os.environ["NUMEXPR_MAX_THREADS"]="16"
 class TestMatmulLowPrec(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(0)
-        self.prefix = "model.layers.0.self_attn.q_proj"
+        self.prefix = "model.layers.9.self_attn.q_proj"
         self.bitwidth = [2]
         self.tensors = {
             'bitblas': {k: {} for k in self.bitwidth},
@@ -33,19 +33,19 @@ class TestMatmulLowPrec(unittest.TestCase):
         }
         for bitwidth in self.bitwidth:
             with st.safe_open(
-                f".local/{bitwidth}bit_bitblas.safetensors", framework="pt", device="cuda"
+                f".local/lmsys.vicuna-7b-v1.5.4b75s128g.sym/bitblas.slice.safetensors", framework="pt", device="cuda"
             ) as fp:
                 for key in fp.keys():
                     self.tensors['bitblas'][bitwidth][key] = fp.get_tensor(key)
             with st.safe_open(
-                f".local/{bitwidth}bit_gptq.safetensors", framework="pt", device="cuda"
+                f".local/lmsys.vicuna-7b-v1.5.4b75s128g.sym/slice.safetensors", framework="pt", device="cuda"
             ) as fp:
                 for key in fp.keys():
                     self.tensors['gptq'][bitwidth][key] = fp.get_tensor(key)
 
     def test_lowprec_matmul(self):
         for bitwidth in self.bitwidth:
-            prefix = "model.layers.0.self_attn.q_proj"
+            prefix = "model.layers.9.self_attn.q_proj"
             qweight = self.tensors['gptq'][bitwidth][f"{prefix}.qweight"]
             qzeros = self.tensors['gptq'][bitwidth][f"{prefix}.qzeros"]
             scales = self.tensors['gptq'][bitwidth][f"{prefix}.scales"]

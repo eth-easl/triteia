@@ -30,7 +30,7 @@ def main(args):
         remaining_keys.remove(module + ".scales")
         remaining_keys.remove(module + ".g_idx")
     new_tensors.update({key: tensors[key] for key in remaining_keys})        
-    
+
     print(f"Finished converting to bitblas with bitwidth {args.bitwidth}! Saving to {args.output}...")
     for key in new_tensors.keys():
         new_tensors[key] = new_tensors[key].contiguous()

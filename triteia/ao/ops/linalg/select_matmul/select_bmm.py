@@ -50,7 +50,7 @@ def ibmm(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, bias=None):
     unique_indices = torch.unique(valid_indices)
     for id in unique_indices:
         idx_mask = indices == id
-        inp = x[idx_mask]
+        inp = x[idx_mask].contiguous()
         output = quant_matmul_248_bitblas(
             bitwidth, 
             inp, 
