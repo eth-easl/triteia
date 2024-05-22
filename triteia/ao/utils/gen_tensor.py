@@ -1,13 +1,14 @@
 import torch
-import marlin
+import triteia.lib.marlin as marlin
 import torch.nn as nn
 from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
     QuantLinear as CudaOldQuantLinear,
 )
 from triteia.ao.nn.linear_bitblas import Linear as BitblasLinear
-from marlin._semi_structured_conversions import (
+from triteia.lib.marlin.semi_structured_conversions import (
     mask_creator
 )
+
 def gen_quant4(m, n, groupsize=-1, DEV="cuda:0"):
     tile = 16
     maxq = 2 ** 4 - 1

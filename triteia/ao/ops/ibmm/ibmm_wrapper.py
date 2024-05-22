@@ -1,9 +1,8 @@
 import torch
-from triteia.ao.ops.linalg.matmul.bmm_lowprec import quant_bmm_248
-from triteia.ao.ops.linalg.matmul.bmm_lowprec import bitblas_loop_quant_bmm_248
-from triteia.ao.ops.linalg.matmul.native_mm_lowprec import native_bmm_lowprec
-from triteia.ao.ops.linalg.matmul.matmul_lowprec import quant_matmul_248_bitblas
-
+from triteia.ao.ops.matmul.bmm_lowprec import quant_bmm_248
+from triteia.ao.ops.matmul.bmm_lowprec import bitblas_loop_quant_bmm_248
+from triteia.ao.ops.matmul.native_mm_lowprec import native_bmm_lowprec
+from triteia.ao.ops.matmul.matmul_lowprec import quant_matmul_248_bitblas
 
 def naive_quant_select_bmm_248(bitwidth, indices,y, x, qweight, qzero, scale, g_idx=None, bias=None):
     mask = indices != -1

@@ -32,10 +32,10 @@ def _bench_ibmm(bitwidth, indices, y, x, qweight, scales, base_weight):
     torch.cuda.synchronize()
     start = timer()
     # y = torch.matmul(x, base_weight.T)
-    ibmm_marlin_native(indices, y, x, qweight, scales)
+    ibmm_marlin(bitwidth, indices, y, x, qweight, scales)
     torch.cuda.synchronize()
     end = timer()
-    print(y)
+    print("y", y)
     return (end-start) * 1000
 
 def _bench_fp16(indices, y, x, weight):
@@ -73,10 +73,10 @@ def benchmark():
                 y_1 = torch.zeros((num_reqs, N), dtype=torch.float16, device="cuda")
                 y_2 = torch.zeros((num_reqs, N), dtype=torch.float16, device="cuda")
                 torch.cuda.synchronize()
-
                 # warmup
                 ibmm_marlin(bitwidth, indices, y_1, x, qweight, scales)
                 _bench_fp16(indices, y_2, x, fp16_weights)
+                
                 torch.cuda.synchronize()
                 print("Warmup Done")
                 ## 

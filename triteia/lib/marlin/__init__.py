@@ -34,7 +34,7 @@ import torch
 import torch.nn as nn
 import marlin_cuda
 
-from marlin._semi_structured_conversions import (
+from .semi_structured_conversions import (
     sparse_semi_structured_from_dense_cutlass,
     mask_creator,
 )

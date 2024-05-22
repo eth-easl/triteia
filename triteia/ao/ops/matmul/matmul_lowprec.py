@@ -401,8 +401,8 @@ def quant_matmul_248_bitblas(bitwidth, x, qweight, qzero, scale, g_idx=None, bia
             with_bias=False,
             group_size=K,
             with_scaling=True,
-            with_zeros=False,
-            # zeros_mode="quantized",
+            with_zeros=True,
+            zeros_mode="quantized",
         )
         matmul = get_or_create_bitblas_operator(matmul_config, type="matmul")
         global_registry[key] = matmul
