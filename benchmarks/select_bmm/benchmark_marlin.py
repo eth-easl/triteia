@@ -1,10 +1,7 @@
 import torch
 import bitblas
 from timeit import default_timer as timer
-from triteia.ao.ops.ibmm.ibmm_marlin import ibmm_marlin
-from triteia.ao.utils.gen_tensor import generate_bitblas_weight
-from triteia.ao.ops.linalg.select_matmul.select_bmm import ibmm
-from triteia.ao.ops.linalg.select_matmul.select_bmm import vectorized_ibmm
+from triteia.ao.ops.ibmm.ibmm_marlin import ibmm_marlin, ibmm_marlin_native
 from triteia.ao.utils.distribution import generate_model_distribution
 from triteia.ao.utils.gen_tensor import gen_quant4, gen_pruned_quant4_NT
 
@@ -35,7 +32,7 @@ def _bench_ibmm(bitwidth, indices, y, x, qweight, scales, base_weight):
     torch.cuda.synchronize()
     start = timer()
     # y = torch.matmul(x, base_weight.T)
-    ibmm_marlin(bitwidth, indices, y, x, qweight, scales)
+    ibmm_marlin_native(indices, y, x, qweight, scales)
     torch.cuda.synchronize()
     end = timer()
     print(y)

@@ -21,6 +21,8 @@
 #include <torch/all.h>
 #include <torch/python.h>
 
+using namespace torch::indexing;
+
 namespace marlin {
 
 int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
@@ -96,12 +98,24 @@ void mul_2_4(const torch::Tensor &A, const torch::Tensor &B,
 
 void ibmm(const torch::Tensor &A, const torch::Tensor &B, torch::Tensor &C, const torch::Tensor &s,torch::Tensor &indices, torch::Tensor &workspace, int thread_k = -1, int thread_n = -1, int sms = -1, int max_par = 8) {
   // get unique, valid indices
-  torch::Tensor unique_indices = at::_unique(indices);
-  mul(A, B, C, s, workspace, thread_k, thread_n, sms, max_par);
+  // for each unique_index, get the rows in A by idx_mask = indices == id
+  torch::Tensor valid_indices = indices != -1;
+  auto [unique_indices, inverse_indices] = at::_unique(valid_indices);
+  for (int i=0; i<unique_indices.size(0); i++) {
+    auto idx = indices.masked_select(indices == unique_indices[i]);
+    const torch::Tensor inp = A.index_select(0, idx);
+    const torch::Tensor B_target = B.select(0, i);
+    const torch::Tensor s_target = s.select(0, i);
+    torch::Tensor C_temp = C.index_select(0, idx);
+    // mul(inp, B_target, C_temp, 
+    //     s_target, workspace, thread_k, thread_n, sms, max_par
+    // );
+  }
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("mul", &mul, "Marlin FP16xINT4 matmul.");
   m.def("mul_2_4", &mul_2_4, "Marlin FP16xINT4 matmul with 2:4 sparsity.");
+  m.def("ibmm", &ibmm, "Marlin FP16xINT4 indexed batch matmul.");
 }
 } // namespace marlin

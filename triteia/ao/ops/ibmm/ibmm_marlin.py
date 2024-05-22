@@ -1,5 +1,5 @@
 import torch
-import marlin
+import triteia.lib.marlin as marlin
 
 def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None):
     mask = indices != -1
@@ -38,3 +38,8 @@ def ibmm_marlin(bitwidth, indices, y, x, qweight, scale, g_idx=None, bias=None):
         )
         y[idx_mask] += output
     return y
+
+def ibmm_marlin_native(indices, y, x, qweight, scale):
+    # convert indices to long type
+    indices = indices.long()
+    marlin.ibmm(x, qweight, y, scale, indices, workspace)
