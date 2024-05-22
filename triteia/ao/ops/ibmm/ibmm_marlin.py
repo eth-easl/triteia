@@ -29,7 +29,6 @@ def ibmm_marlin(bitwidth, indices, y, x, qweight, scale, g_idx=None, bias=None):
     mask = indices != -1
     valid_indices = indices[mask]
     unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
-    output = torch.zeros_like(y, device=y.device, dtype=y.dtype)
     start = 0
     for id, count in zip(unique_indices, counts):
         inp_mask = indices == id
@@ -37,12 +36,11 @@ def ibmm_marlin(bitwidth, indices, y, x, qweight, scale, g_idx=None, bias=None):
         marlin.mul(
             inp,
             qweight[id],
-            output[start:start+count,:],
+            y[start:start+count,:],
             scale[id],
             workspace,
         )
         start += count
-    y += output
     return y
 
 def ibmm_marlin_native(indices, y, x, qweight, scale):

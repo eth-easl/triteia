@@ -31,44 +31,46 @@ def prepare_fp16_weights(K, N, num_models):
 def _bench_ibmm(bitwidth, indices, y, x, qweight, scales, base_weight):
     torch.cuda.synchronize()
     start = timer()
-    # y = torch.matmul(x, base_weight.T)
+    y = torch.matmul(x, base_weight.T)
     ibmm_marlin(bitwidth, indices, y, x, qweight, scales)
     torch.cuda.synchronize()
     end = timer()
-    print("y", y)
     return (end-start) * 1000
 
 def _bench_fp16(indices, y, x, weight):
     torch.cuda.synchronize()
-    start = timer()
+    start_timer = timer()
     mask = indices != -1
     valid_indices = indices[mask]
-    unique_indices = torch.unique(valid_indices)
-    for id in unique_indices:
+    unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
+    start = 0
+    for id, count in zip(unique_indices, counts):
         idx_mask = indices == id
         inp = x[idx_mask]
-        output = torch.matmul(inp, weight[id].T)
-        y[idx_mask] += output
+        y[start:start+count, :] += torch.matmul(inp, weight[id].T)
+        start += count
     torch.cuda.synchronize()
-    end = timer()
-    return (end-start) * 1000
+    end_timer = timer()
+    return (end_timer-start_timer) * 1000
 
 def benchmark():
     Ns = [4096]
     Ks = [4096]
     bitwidth = 4
-    max_num_models = [20]
+    max_num_models = [2, 4, 16, 24, 48]
     num_reqs = 100
     distribution = "uniform"
+    
     for num_models in max_num_models:
         for N in Ns:
             for K in Ks:
                 # generate num_models quantized weights
                 fp16_weights, qweight, scales = prepare_quantized_weights(bitwidth, K, N, num_models)
-                
                 x = torch.rand((num_reqs, K), dtype=torch.float16, device="cuda")
-
                 indices = generate_model_distribution(distribution, num_reqs, num_models)
+                # sort indices
+                
+                indices = torch.sort(indices)[0]
                 print(indices)
                 y_1 = torch.zeros((num_reqs, N), dtype=torch.float16, device="cuda")
                 y_2 = torch.zeros((num_reqs, N), dtype=torch.float16, device="cuda")
@@ -76,12 +78,11 @@ def benchmark():
                 # warmup
                 ibmm_marlin(bitwidth, indices, y_1, x, qweight, scales)
                 _bench_fp16(indices, y_2, x, fp16_weights)
-                
                 torch.cuda.synchronize()
                 print("Warmup Done")
-                ## 
                 v1_elapsed = _bench_ibmm(bitwidth, indices, y_1, x, qweight, scales, fp16_weights[0])
                 fp16_elapsed = _bench_fp16(indices, y_2, x, fp16_weights)
+                
                 print("--"* 20)
                 print(f"# models: {num_models}, # requests: {num_reqs}, N: {N}, K: {K}")
                 print(f"v1: {v1_elapsed:.2f} ms")
