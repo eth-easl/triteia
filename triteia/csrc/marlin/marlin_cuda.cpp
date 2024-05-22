@@ -16,6 +16,7 @@
  */
 
 #include <ATen/cuda/CUDAContext.h>
+#include <ATen/Functions.h>
 #include <cuda_runtime.h>
 #include <torch/all.h>
 #include <torch/python.h>
@@ -46,8 +47,7 @@ void mul(const torch::Tensor &A, const torch::Tensor &B, torch::Tensor &C,
   if (groupsize != -1 && groupsize * s.size(0) != prob_k)
     AT_ERROR("k=", prob_k, " not compatible with ", s.size(0), " groups.");
   if (workspace.numel() < prob_n / 128 * max_par)
-    AT_ERROR("workspace must be of size at least ", prob_n / 128 * max_par,
-             ".");
+    AT_ERROR("workspace must be of size at least ", prob_n / 128 * max_par,".");
   int dev = A.get_device();
   int err = marlin_cuda(A.data_ptr(), B.data_ptr(), C.data_ptr(), s.data_ptr(),
                         prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize,
@@ -83,6 +83,7 @@ void mul_2_4(const torch::Tensor &A, const torch::Tensor &B,
       A.data_ptr(), B.data_ptr(), meta.data_ptr(), C.data_ptr(), s.data_ptr(),
       prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize, dev,
       at::cuda::getCurrentCUDAStream(dev), thread_k, thread_m, sms, max_par);
+      
   if (err == ERR_PROB_SHAPE) {
     AT_ERROR("Problem (m=", prob_m, ", n=", prob_n, ", k=", prob_k, ")",
              " not compatible with thread_k=", thread_k,
@@ -91,6 +92,12 @@ void mul_2_4(const torch::Tensor &A, const torch::Tensor &B,
     AT_ERROR("No kernel implementation for thread_k=", thread_k,
              ", thread_m=", thread_m, ", groupsize=", groupsize, ".");
   }
+}
+
+void ibmm(const torch::Tensor &A, const torch::Tensor &B, torch::Tensor &C, const torch::Tensor &s,torch::Tensor &indices, torch::Tensor &workspace, int thread_k = -1, int thread_n = -1, int sms = -1, int max_par = 8) {
+  // get unique, valid indices
+  torch::Tensor unique_indices = at::_unique(indices);
+  mul(A, B, C, s, workspace, thread_k, thread_n, sms, max_par);
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
