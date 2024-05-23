@@ -4,7 +4,7 @@ import torch.nn as nn
 from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import (
     QuantLinear as CudaOldQuantLinear,
 )
-from triteia.ao.nn.linear_bitblas import Linear as BitblasLinear
+
 from triteia.lib.marlin.semi_structured_conversions import (
     mask_creator
 )
@@ -149,6 +149,7 @@ def generate_quantized_weight(bitwidth, k, n, group_size):
     return cuda_old_linear.qweight, cuda_old_linear.scales, cuda_old_linear.qzeros
 
 def generate_bitblas_weight(bitwidth, k, n, group_size):
+    from triteia.ao.nn.linear_bitblas import Linear as BitblasLinear
     qweight, scales, qzero = generate_quantized_weight(bitwidth, k, n, group_size)
     bitblas_linear = BitblasLinear(
         in_features=k,
