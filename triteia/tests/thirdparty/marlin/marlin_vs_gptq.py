@@ -4,9 +4,10 @@ import torch.nn as nn
 import safetensors as st
 import triteia.lib.marlin as marlin
 from triteia.ao.ops.matmul.matmul_lowprec import quant_matmul_248
+from triteia.ao.ops.matmul.native_mm_lowprec import native_matmul_lowprec_248
 
-marlin_tensors_file = ".local/lmsys.vicuna-7b-v1.5.4b75s128gn2m4.sym/marlin.safetensors"
-gptq_tensors_file = ".local/lmsys.vicuna-7b-v1.5.4b75s128gn2m4.sym/deltazip-compressed.safetensors"
+marlin_tensors_file = ".local/tinyllama.tinyllama-1.1b-chat-v1.0/marlin.safetensors"
+gptq_tensors_file   = ".local/tinyllama.tinyllama-1.1b-chat-v1.0/gptq.safetensors"
 marlin_tensors = {}
 gptq_tensors = {}
 device = "cuda:0"
@@ -31,9 +32,19 @@ with st.safe_open(
 print(marlin_tensors.keys())
 print(gptq_tensors.keys())
 # ---
+print(gptq_tensors['g_idx'].shape)
+input_dim = gptq_tensors['g_idx'].shape[0]
 
-x = torch.rand((1, 4096), dtype=torch.float16, device=device)
+x = torch.rand((1, input_dim), dtype=torch.float16, device=device)
 triton_output = quant_matmul_248(
+    4, x, 
+    gptq_tensors['qweight'],
+    gptq_tensors['qzeros'],
+    gptq_tensors['scales'],
+    gptq_tensors['g_idx'],
+    bias=None
+)
+torch_output = native_matmul_lowprec_248(
     4, x, 
     gptq_tensors['qweight'],
     gptq_tensors['qzeros'],
@@ -43,16 +54,18 @@ triton_output = quant_matmul_248(
 )
 print(gptq_tensors['qweight'].shape)
 print(triton_output)
+print(torch_output)
 # -- marlin computes
-workspace = torch.zeros(4096//128*16, device=device, dtype=torch.float16)
-output = torch.zeros((1, 4096), device=device, dtype=torch.float16)
+workspace = torch.zeros(input_dim//128*16, device=device, dtype=torch.int)
+output = torch.zeros((1, input_dim), device=device, dtype=torch.float16)
 
 marlin_layer = marlin.Layer(
-    infeatures = 4096,
-    outfeatures = 4096,
+    infeatures = input_dim,
+    outfeatures = input_dim,
+    groupsize=-1,
 )
-marlin_layer.B = marlin_tensors['qweight'].to(device)
-marlin_layer.s = marlin_tensors['scales'].to(device)
+marlin_layer.B = marlin_tensors['B'].to(device)
+marlin_layer.s = marlin_tensors['s'].to(device)
 marlin_layer.workspace = workspace
 output = marlin_layer(x)
 print(output)

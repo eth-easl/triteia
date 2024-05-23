@@ -37,7 +37,7 @@ print(f"With stream: {end-start}")
 
 
 torch.cuda.synchronize()
-torch.cuda.nvtx.range_push("With stream")
+torch.cuda.nvtx.range_push("Without stream")
 start = timer()
 for i in range(total_num):
     y = torch.matmul(x[i], w.T)
