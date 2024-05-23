@@ -38,16 +38,16 @@ template <const int threads,         // number of threads in a threadblock
           const int group_blocks = -1 // number of consecutive 16x16 blocks with
                                       // a separate quantization scale
           >
-__global__ void
-Marlin_ibmm(const int4 *__restrict__ A, // fp16 input matrix of shape rxmxk
-       const int4 *__restrict__ B,      // 4bit quantized weight matrix of shape pxkxn
-       int4 *__restrict__ C,            // fp16 output buffer of shape rxmxn
-       int4 * __restrict__ indices,     // indices for the quantized weights 
-       const int4 *__restrict__ s,      // fp16 quantization scales of shape (k/groupsize)xn
-       int prob_m,                      // batch dimension m
-       int prob_n,                      // output dimension n
-       int prob_k,                      // reduction dimension k
-       int *locks                       // extra global storage for barrier synchronization
+__device__ void
+Marlin(const int4 *__restrict__ A, // fp16 input matrix of shape mxk
+       const int4 *__restrict__ B, // 4bit quantized weight matrix of shape kxn
+       int4 *__restrict__ C,       // fp16 output buffer of shape mxn
+       const int4
+           *__restrict__ s, // fp16 quantization scales of shape (k/groupsize)xn
+       int prob_m,          // batch dimension m
+       int prob_n,          // output dimension n
+       int prob_k,          // reduction dimension k
+       int *locks           // extra global storage for barrier synchronization
 ) {
   // Each threadblock processes one "stripe" of the B matrix with (roughly) the
   // same size, which might involve multiple column "slices" (of width 16 *

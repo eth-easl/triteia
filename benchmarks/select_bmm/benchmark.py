@@ -1,9 +1,7 @@
 import torch
 from triteia.ao.utils.gen_tensor import generate_bitblas_weight
-from triteia.ao.ops.linalg.select_matmul.select_bmm import ibmm
-from triteia.ao.ops.linalg.select_matmul.select_bmm import vectorized_ibmm
+from triteia.ao.ops.ibmm.ibmm_wrapper import ibmm
 from triteia.ao.utils.distribution import generate_model_distribution
-from triteia.ao.ops.linalg.matmul.group_gemm_lowprec import group_gemm, group_gemm_2
 from timeit import default_timer as timer
 import bitblas
 
@@ -33,8 +31,9 @@ def prepare_fp16_weights(K, N, num_models):
 def _bench_ibmm(bitwidth, indices, y, x, qweight, qzero, scales, base_weight):
     torch.cuda.synchronize()
     start = timer()
-    y = torch.matmul(x, base_weight.T)
+    # y = torch.matmul(x, base_weight.T)
     ibmm(bitwidth, indices, y, x, qweight, qzero, scales)
+    print(y)
     torch.cuda.synchronize()
     end = timer()
     return (end-start) * 1000
@@ -59,8 +58,8 @@ def _bench_fp16(indices, y, x, weight):
 def benchmark():
     Ns = [4096]
     Ks = [4096]
-    bitwidth = 2
-    max_num_models = [40]
+    bitwidth = 4
+    max_num_models = [4]
     num_reqs = 100
     distribution = "uniform"
     
@@ -73,6 +72,7 @@ def benchmark():
                 qweight = qweight.contiguous()
                 scales = scales.contiguous()
                 qzero = qzero.contiguous()
+                
                 print(f"qweight.shape: {qweight.shape}, scales.shape: {scales.shape}, qzero.shape: {qzero.shape}")
                 x = torch.rand((num_reqs, K), dtype=torch.float16, device="cuda")
                 indices = generate_model_distribution(distribution, num_reqs, num_models)
@@ -81,11 +81,10 @@ def benchmark():
                 y_1 = torch.zeros((num_reqs, N), dtype=torch.float16, device="cuda")
                 y_2 = torch.zeros((num_reqs, N), dtype=torch.float16, device="cuda")
                 torch.cuda.synchronize()
-                
+                print("warming up")
                 # warmup
                 ibmm(bitwidth, indices, y_1, x, qweight, qzero, scales, fp16_weights[0])
                 _bench_fp16(indices, y_2, x, fp16_weights)
-                
                 torch.cuda.synchronize()
                 print("Warmup Done")
                 

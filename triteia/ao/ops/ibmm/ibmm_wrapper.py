@@ -46,20 +46,41 @@ def ibmm(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, bias=None):
     mask = indices != -1
     valid_indices = indices[mask]
     # weight.shape: (max_deltas, outfeatures, infeatures)
-    unique_indices = torch.unique(valid_indices)
-    for id in unique_indices:
+    unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
+    start = 0
+    for id, count in zip(unique_indices, counts):
         idx_mask = indices == id
         inp = x[idx_mask]
-        output = quant_matmul_248_bitblas(
+        quant_matmul_248_bitblas(
             bitwidth, 
             inp, 
             qweight[id],
             qzero[id],
             scale[id],
+            y[start:start+count, :]
         )
-        y[idx_mask] += output
+        start += count
     return y
 
+def ibmm_new(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, bias=None):
+    mask = indices != -1
+    valid_indices = indices[mask]
+    # weight.shape: (max_deltas, outfeatures, infeatures)
+    unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
+    start = 0
+    for id, count in zip(unique_indices, counts):
+        idx_mask = indices == id
+        inp = x[idx_mask]
+        quant_matmul_248_bitblas(
+            bitwidth, 
+            inp, 
+            qweight[id],
+            qzero[id],
+            scale[id],
+            y[start:start+count, :]
+        )
+        start += count
+    return y
 
 def vectorized_ibmm(bitwidth, indices, y, x, qweight, qzero, scale, g_idx=None, bias=None):
     mask = indices != -1
