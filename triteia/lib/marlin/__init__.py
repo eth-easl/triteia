@@ -205,12 +205,12 @@ class Layer(nn.Module):
         )
         return C
 
-    def pack(self, linear, scales, trans=False):
+    def pack(self, weight, scales, trans=False):
         """Pack a fake-quantized linear layer into this actual Marlin representation.
         @linear: fake-quantized `torch.nn.Linear` layer to convert (must be of type `torch.half`)
         @scales: corresponding quantization scales of shape `(infeatures, groups)`
         """
-        if linear.weight.dtype != torch.half:
+        if weight.dtype != torch.half:
             raise ValueError("Only `torch.half` weights are supported.")
         if trans:
             perm, scale_perm, scale_perm_single = (
@@ -223,7 +223,7 @@ class Layer(nn.Module):
         tile = 16
         maxq = 2**4 - 1
         s = scales
-        w = linear.weight.data
+        w = weight.data
         if self.groupsize != self.k:
             w = w.reshape((-1, self.groupsize, self.n))
             w = w.permute(1, 0, 2)
