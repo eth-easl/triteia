@@ -17,8 +17,8 @@ def _validate_compatibility(model):
         raise ValueError(f"Only GPTQ models can be converted to Marlin format. You passed a model with quant_method={quantization_config.quant_method}")
     if quantization_config.bits != 4:
         raise ValueError(f"Only 4 bit quantized models can be converted to Marlin format. You passed a model with bits={quantization_config.bits}")
-    if quantization_config.group_size != 128:
-        raise ValueError(f"Only group size 128 models can be converted to Marlin format. You passed a model with group_size={quantization_config.group_size}")
+    if quantization_config.group_size != 128 and quantization_config.group_size != -1:
+        raise ValueError(f"Only group size 128 or -1 models can be converted to Marlin format. You passed a model with group_size={quantization_config.group_size}")
     if not quantization_config.sym:
         raise ValueError(f"Only models with symmetric quantization can be converted to Marlin Format. You passed a model with sym={quantization_config.sym}")
     if quantization_config.desc_act:

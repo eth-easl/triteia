@@ -18,7 +18,7 @@ examples = [
 
 quantize_config = BaseQuantizeConfig(
     bits=4,
-    group_size=128,
+    group_size=-1,
     desc_act=False,
     sym=True,
     # is_marlin_format=True,
