@@ -1,13 +1,13 @@
 import os
 import torch
-import torch.nn as nn
 import safetensors as st
 import triteia.lib.marlin as marlin
+from triteia.lib.marlin.semi_structured_conversions import sparse_semi_structured_from_dense_cutlass
 from triteia.ao.ops.matmul.matmul_lowprec import quant_matmul_248
 from triteia.ao.ops.matmul.native_mm_lowprec import native_matmul_lowprec_248
 
-marlin_tensors_file = ".local/tinyllama.tinyllama-1.1b-chat-v1.0/marlin.safetensors"
-gptq_tensors_file   = ".local/tinyllama.tinyllama-1.1b-chat-v1.0/model.safetensors"
+marlin_tensors_file = ".local/tinyllama/marlin.safetensors"
+gptq_tensors_file   = ".local/tinyllama/model.safetensors"
 marlin_tensors = {}
 gptq_tensors = {}
 device = "cuda:0"
@@ -52,12 +52,28 @@ torch_output = native_matmul_lowprec_248(
     gptq_tensors['g_idx'],
     bias=None
 )
-print(gptq_tensors['qweight'].shape)
-print(triton_output)
-print(torch_output)
+# print(gptq_tensors['qweight'].shape)
+# print(triton_output)
+# print(torch_output)
 # -- marlin computes
 workspace = torch.zeros(input_dim//128*16, device=device, dtype=torch.int)
-output = torch.zeros((1, input_dim), device=device, dtype=torch.float16)
+output = torch.empty(
+    x.shape[:-1] + (marlin_tensors['s'].shape[1],),
+    dtype=x.dtype,
+    device=x.device,
+)
+# dense_weight = marlin_tensors['B']
+# sparse_weight, meta = sparse_semi_structured_from_dense_cutlass(dense_weight)
+# scales = marlin_tensors['s']
+
+# marlin.mul_2_4(
+#     x.view((-1, x.shape[-1])),
+#     sparse_weight,
+#     meta,
+#     output.view((-1, output.shape[-1])),
+#     scales,
+#     workspace,
+# )
 
 marlin_layer = marlin.Layer(
     infeatures = input_dim,
@@ -68,4 +84,4 @@ marlin_layer.B = marlin_tensors['B'].to(device)
 marlin_layer.s = marlin_tensors['s'].to(device)
 marlin_layer.workspace = workspace
 output = marlin_layer(x)
-print(output)
+print(f"diff: {(output - triton_output).max()}")

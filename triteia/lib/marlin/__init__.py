@@ -167,63 +167,37 @@ class Layer(nn.Module):
         """
         super().__init__()
         if groupsize not in [-1, 128]:
-            raise ValueError("Only groupsize -1 and 128 are supported.")
-        if infeatures % 128 != 0 or outfeatures != 256 == 0:
-            raise ValueError(
-                "`infeatures` must be divisible by 128 and `outfeatures` by 256."
-            )
+            raise ValueError('Only groupsize -1 and 128 are supported.')
+        if infeatures % 128 != 0 or outfeatures % 256 != 0:
+            raise ValueError('`infeatures` must be divisible by 128 and `outfeatures` by 256.')
         if groupsize == -1:
             groupsize = infeatures
         if infeatures % groupsize != 0:
-            raise ValueError("`infeatures` must be divisible by `groupsize`.")
+            raise ValueError('`infeatures` must be divisible by `groupsize`.')
         self.k = infeatures
         self.n = outfeatures
         self.groupsize = groupsize
-        self.register_buffer(
-            "B", torch.empty((self.k // 16, self.n * 16 // 8), dtype=torch.int)
-        )
-        self.register_buffer(
-            "s", torch.empty((self.k // groupsize, self.n), dtype=torch.half)
-        )
+        self.register_buffer('B', torch.empty((self.k // 16, self.n * 16 // 8), dtype=torch.int))
+        self.register_buffer('s', torch.empty((self.k // groupsize, self.n), dtype=torch.half))
         # 128 is currently the minimum `tile_n`, hence it gives the maximum workspace size; 16 is the default `max_par`
-        self.register_buffer(
-            "workspace",
-            torch.zeros(self.n // 128 * 16, dtype=torch.int),
-            persistent=False,
-        )
+        self.register_buffer('workspace', torch.zeros(self.n // 128 * 16, dtype=torch.int), persistent=False)
 
     def forward(self, A):
-        C = torch.empty(
-            A.shape[:-1] + (self.s.shape[1],), dtype=A.dtype, device=A.device
-        )
-        mul(
-            A.view((-1, A.shape[-1])),
-            self.B,
-            C.view((-1, C.shape[-1])),
-            self.s,
-            self.workspace,
-        )
+        C = torch.empty(A.shape[:-1] + (self.s.shape[1],), dtype=A.dtype, device=A.device)
+        mul(A.view((-1, A.shape[-1])), self.B, C.view((-1, C.shape[-1])), self.s, self.workspace)
         return C
 
-    def pack(self, weight, scales, trans=False):
+    def pack(self, weight, scales):
         """Pack a fake-quantized linear layer into this actual Marlin representation.
         @linear: fake-quantized `torch.nn.Linear` layer to convert (must be of type `torch.half`)
         @scales: corresponding quantization scales of shape `(infeatures, groups)`
-        """
+        """ 
         if weight.dtype != torch.half:
-            raise ValueError("Only `torch.half` weights are supported.")
-        if trans:
-            perm, scale_perm, scale_perm_single = (
-                _perm_t,
-                _scale_perm_t,
-                _scale_perm_single_t,
-            )
-        else:
-            perm, scale_perm, scale_perm_single = _perm, _scale_perm, _scale_perm_single
+            raise ValueError('Only `torch.half` weights are supported.')
         tile = 16
-        maxq = 2**4 - 1
-        s = scales
-        w = weight.data
+        maxq = 2 ** 4 - 1
+        s = scales.t()
+        w = weight.t()
         if self.groupsize != self.k:
             w = w.reshape((-1, self.groupsize, self.n))
             w = w.permute(1, 0, 2)
@@ -236,25 +210,22 @@ class Layer(nn.Module):
             w = w.reshape((self.groupsize, -1, self.n))
             w = w.permute(1, 0, 2)
             w = w.reshape((self.k, self.n)).contiguous()
-            s = s.reshape((-1, len(scale_perm)))[:, scale_perm]
+            s = s.reshape((-1, len(_scale_perm)))[:, _scale_perm]
         else:
-            s = s.reshape((-1, len(scale_perm_single)))[:, scale_perm_single]
-
+            s = s.reshape((-1, len(_scale_perm_single)))[:, _scale_perm_single]
         s = s.reshape((-1, self.n)).contiguous()
         w = w.reshape((self.k // tile, tile, self.n // tile, tile))
         w = w.permute((0, 2, 1, 3))
         w = w.reshape((self.k // tile, self.n * tile))
         res = w
-        res = res.reshape((-1, perm.numel()))[:, perm].reshape(res.shape)
+        res = res.reshape((-1, _perm.numel()))[:, _perm].reshape(res.shape)
         q = np.zeros((res.shape[0], res.shape[1] // 8), dtype=np.uint32)
         res = res.cpu().numpy().astype(np.uint32)
         for i in range(8):
             q |= res[:, i::8] << 4 * i
-
         q = torch.from_numpy(q.astype(np.int32)).to(w.device)
         self.B[:, :] = q.to(self.B.device)
         self.s[:, :] = s.to(self.s.device)
-
 
 def _get_perms_2_4():
     perm = []
