@@ -352,9 +352,10 @@ class Layer_2_4(nn.Module):
 
         # mask = mask_creator(w.T).cuda().bool()
         # w = mask * w.T
-
+        w = w.t().contiguous()
         w, meta = sparse_semi_structured_from_dense_cutlass(w)
         w = w.t()
+
         self.k = self.k // 2
         self.groupsize = self.groupsize // 2
 

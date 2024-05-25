@@ -3,7 +3,7 @@ import safetensors as st
 from triteia.ao.utils.quant_utils import dequantize_weight
 from triteia.lib.marlin import Layer_2_4, mask_creator
 
-prefix = "model.layers.2.self_attn.q_proj"
+prefix = "model.layers.0.mlp.down_proj"
 gptq_tensors_file = ".local/tinyllama/model.safetensors"
 
 marlin_tensors = {}
@@ -29,7 +29,6 @@ def repack(dequantized_weight, scales):
     layer.s = torch.empty((k_sp // (group_size // 2), m), dtype=torch.half, device=DEV)
     layer.pack(dequantized_weight, scales, True)
     return layer.B, layer.s, layer.meta
-    
     
 with st.safe_open(
     gptq_tensors_file, framework="pt", device=DEV
@@ -58,8 +57,8 @@ n = 1
 
 x = torch.rand((n, input_dim), dtype=torch.float16, device=DEV)
 
-ref_output = torch.matmul(x, dequantized_weight)
 B, s, meta = repack(dequantized_weight, scales)
+ref_output = torch.matmul(x, dequantized_weight)
 
 layer = Layer_2_4(k, m, groupsize =-1)
 workspace = torch.zeros(m // 128 * 16, device=DEV, dtype=torch.int32)

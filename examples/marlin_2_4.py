@@ -43,6 +43,7 @@ def gen_quant4_NT(m, k, groupsize=-1):
     layer.B = torch.empty((k_sp // 16, m * 16 // 8), dtype=torch.int, device=DEV)
     layer.meta = torch.empty((m, k // 16), dtype=torch.int16, device=DEV)
     layer.s = torch.empty((k_sp // (groupsize // 2), m), dtype=torch.half, device=DEV)
+    print(f"ref: {ref.shape}, s: {s.shape}")
     layer.pack(ref, s, True)
     q = layer.B
     s = layer.s
