@@ -40,5 +40,4 @@ def dequantize_weight(qweight, qzeros, scales):
     scales = scales.repeat_interleave(group_size, dim=0)
     unpacked_qzeros = unpacked_qzeros.repeat_interleave(group_size, dim=0)
     unpacked_qweight = (unpacked_qweight - unpacked_qzeros) * scales
-
     return unpacked_qweight.T

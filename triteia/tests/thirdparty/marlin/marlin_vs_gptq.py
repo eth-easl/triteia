@@ -2,7 +2,6 @@ import os
 import torch
 import safetensors as st
 import triteia.lib.marlin as marlin
-from triteia.lib.marlin.semi_structured_conversions import sparse_semi_structured_from_dense_cutlass
 from triteia.ao.ops.matmul.matmul_lowprec import quant_matmul_248
 from triteia.ao.ops.matmul.native_mm_lowprec import native_matmul_lowprec_248
 
@@ -11,7 +10,7 @@ gptq_tensors_file   = ".local/tinyllama/model.safetensors"
 marlin_tensors = {}
 gptq_tensors = {}
 device = "cuda:0"
-prefix = "model.layers.1.self_attn.k_proj"
+prefix = "model.layers.1.self_attn.q_proj"
 
 with st.safe_open(
     marlin_tensors_file, framework="pt", device=device
@@ -28,13 +27,9 @@ with st.safe_open(
         if key.startswith(prefix):
             module_name = key.removeprefix(prefix + ".")
             gptq_tensors[module_name] = f.get_tensor(key)
-
-print(marlin_tensors.keys())
-print(gptq_tensors.keys())
 # ---
-print(gptq_tensors['g_idx'].shape)
 input_dim = gptq_tensors['g_idx'].shape[0]
-
+print(f"input_dim: {input_dim}")
 x = torch.rand((1, input_dim), dtype=torch.float16, device=device)
 triton_output = quant_matmul_248(
     4, x, 
@@ -52,16 +47,17 @@ torch_output = native_matmul_lowprec_248(
     gptq_tensors['g_idx'],
     bias=None
 )
-# print(gptq_tensors['qweight'].shape)
+print(gptq_tensors['qweight'].shape)
 # print(triton_output)
 # print(torch_output)
+
 # -- marlin computes
 workspace = torch.zeros(input_dim//128*16, device=device, dtype=torch.int)
-output = torch.empty(
-    x.shape[:-1] + (marlin_tensors['s'].shape[1],),
-    dtype=x.dtype,
-    device=x.device,
-)
+# output = torch.empty(
+#     x.shape[:-1] + (marlin_tensors['s'].shape[1],),
+#     dtype=x.dtype,
+#     device=x.device,
+# )
 # dense_weight = marlin_tensors['B']
 # sparse_weight, meta = sparse_semi_structured_from_dense_cutlass(dense_weight)
 # scales = marlin_tensors['s']
@@ -75,13 +71,19 @@ output = torch.empty(
 #     workspace,
 # )
 
-marlin_layer = marlin.Layer(
+marlin_layer = marlin.Layer_2_4(
     infeatures = input_dim,
     outfeatures = input_dim,
     groupsize=-1,
 )
 marlin_layer.B = marlin_tensors['B'].to(device)
 marlin_layer.s = marlin_tensors['s'].to(device)
+marlin_layer.meta = marlin_tensors['meta'].to(device)
+
+print(f"marlin_layer.B: {marlin_layer.B.shape}, marlin_layer.s: {marlin_layer.s.shape}, marlin_layer.meta: {marlin_layer.meta.shape}")
+
 marlin_layer.workspace = workspace
+
 output = marlin_layer(x)
-print(f"diff: {(output - triton_output).max()}")
+
+print(f"diff: {(output - triton_output).mean()}")

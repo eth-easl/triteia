@@ -283,13 +283,13 @@ class Layer_2_4(nn.Module):
         self.n = outfeatures
         self.groupsize = groupsize
         self.register_buffer(
-            "B", torch.empty((self.k // 16, self.n * 16 // 8), dtype=torch.int)
+            "B", torch.empty((self.k // 16 // 2, self.n * 16 // 8), dtype=torch.int)
         )
         self.register_buffer(
             "meta", torch.empty((self.n, self.k // 16), dtype=torch.int16)
         )
         self.register_buffer(
-            "s", torch.empty((self.k // groupsize, self.n), dtype=torch.half)
+            "s", torch.empty((self.k // 2 // (groupsize // 2), self.n), dtype=torch.half)
         )
         # 128 is currently the minimum `tile_n`, hence it gives the maximum workspace size; 16 is the default `max_par`
         self.register_buffer(
@@ -304,7 +304,6 @@ class Layer_2_4(nn.Module):
         C = torch.empty(
             A.shape[:-1] + (self.s.shape[1],), dtype=A.dtype, device=A.device
         )
-
         mul_2_4(
             A.view((-1, A.shape[-1])),
             self.B,
@@ -316,12 +315,12 @@ class Layer_2_4(nn.Module):
         # mul_2_4(A, self.B, self.meta, C, self.s, self.workspace)
         return C
 
-    def pack(self, linear, scales, trans=False):
+    def pack(self, weight, scales, trans=False):
         """Pack a fake-quantized linear layer into this actual Marlin representation.
         @linear: fake-quantized `torch.nn.Linear` layer to convert (must be of type `torch.half`)
         @scales: corresponding quantization scales of shape `(infeatures, groups)`
         """
-        if linear.weight.dtype != torch.half:
+        if weight.dtype != torch.half:
             raise ValueError("Only `torch.half` weights are supported.")
         if trans:
             perm, scale_perm, scale_perm_single = (
@@ -334,7 +333,7 @@ class Layer_2_4(nn.Module):
         tile = 16
         maxq = 2**4 - 1
         s = scales
-        w = linear.weight.data
+        w = weight
         if self.groupsize != self.k:
             w = w.reshape((-1, self.groupsize, self.n))
             w = w.permute(1, 0, 2)
@@ -343,7 +342,6 @@ class Layer_2_4(nn.Module):
         w = torch.round(w / s).int()
         w += (maxq + 1) // 2
         w = torch.clamp(w, 0, maxq)
-
         if self.groupsize != self.k:
             w = w.reshape((self.groupsize, -1, self.n))
             w = w.permute(1, 0, 2)
@@ -352,8 +350,9 @@ class Layer_2_4(nn.Module):
         else:
             s = s.reshape((-1, len(scale_perm_single)))[:, scale_perm_single]
 
-        mask = mask_creator(w.T).cuda().bool()
-        w = mask * w.T
+        # mask = mask_creator(w.T).cuda().bool()
+        # w = mask * w.T
+
         w, meta = sparse_semi_structured_from_dense_cutlass(w)
         w = w.t()
         self.k = self.k // 2
