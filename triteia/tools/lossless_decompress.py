@@ -1,7 +1,8 @@
-from triteia.utils.compressor import LosslessCompressor
-import safetensors as st
 import json
 import cupy as cp
+from tqdm import tqdm
+import safetensors as st
+from triteia.utils.compressor import LosslessCompressor
 from safetensors.torch import save_file
 
 def main(args):
@@ -31,7 +32,10 @@ def main(args):
     # save the decompressed tensors
     save_file(
         tensors,
-        args.ckpt,
+        args.output,
+        metadata={
+            "format": "pt"
+        }
     )
     print("Done!")
 
@@ -41,5 +45,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--ckpt", type=str, help="Path to the compressed file")
+    parser.add_argument("--output", type=str, help="Path to the compressed file")
+    
     args = parser.parse_args()
     main(args)

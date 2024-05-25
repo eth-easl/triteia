@@ -7,11 +7,11 @@ from triteia.ao.ops.matmul.matmul_lowprec import quant_matmul_248
 from triteia.ao.ops.matmul.native_mm_lowprec import native_matmul_lowprec_248
 
 marlin_tensors_file = ".local/tinyllama.tinyllama-1.1b-chat-v1.0/marlin.safetensors"
-gptq_tensors_file   = ".local/tinyllama.tinyllama-1.1b-chat-v1.0/gptq.safetensors"
+gptq_tensors_file   = ".local/tinyllama.tinyllama-1.1b-chat-v1.0/model.safetensors"
 marlin_tensors = {}
 gptq_tensors = {}
 device = "cuda:0"
-prefix = "model.layers.0.self_attn.q_proj"
+prefix = "model.layers.1.self_attn.k_proj"
 
 with st.safe_open(
     marlin_tensors_file, framework="pt", device=device

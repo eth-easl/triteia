@@ -3,7 +3,7 @@ from timeit import default_timer as timer
 total_num = 16
 x = torch.rand((total_num, 1,1024), device='cuda')
 w = torch.rand((1024, 1024), device='cuda')
-
+y = torch
 streams = [torch.cuda.Stream() for _ in range(total_num)]
 
 torch.cuda.synchronize()

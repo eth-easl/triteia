@@ -17,10 +17,13 @@ def _validate_compatibility(model):
         raise ValueError(f"Only GPTQ models can be converted to Marlin format. You passed a model with quant_method={quantization_config.quant_method}")
     if quantization_config.bits != 4:
         raise ValueError(f"Only 4 bit quantized models can be converted to Marlin format. You passed a model with bits={quantization_config.bits}")
+    
     if quantization_config.group_size != 128 and quantization_config.group_size != -1:
         raise ValueError(f"Only group size 128 or -1 models can be converted to Marlin format. You passed a model with group_size={quantization_config.group_size}")
+    
     if not quantization_config.sym:
         raise ValueError(f"Only models with symmetric quantization can be converted to Marlin Format. You passed a model with sym={quantization_config.sym}")
+    
     if quantization_config.desc_act:
         raise ValueError(f"Models with act order quantization cannot be converted to Marlin Format. You passed a model with desc_act={quantization_config.desc_act}")
 
@@ -37,11 +40,17 @@ def unpack_4bit_to_32bit_signed(qweight, qzeros):
     for col in range(unpacked_zeros.shape[1]):
         i = col % 8
         unpacked_zeros[:, col] = (qzeros[:, col // 8] >> (4 * i)) & 0xF
-
+        
+    if not torch.all(unpacked_zeros == 7):
+        raise ValueError(
+            "Marlin kernel is compatible only with checkpoints using symmetric quantization."
+            "Found non-symmetric quantization for the weight"
+        )
     return unpacked_weights, unpacked_zeros + 1
 
 @torch.no_grad()
 def dequantize_weight(layer):
+    layer = layer.cuda()
     qweight, qzeros, scales = layer.qweight, layer.qzeros, layer.scales
     unpacked_qweight, unpacked_qzeros = unpack_4bit_to_32bit_signed(qweight, qzeros)
     group_size = unpacked_qweight.shape[0] // scales.shape[0]
@@ -59,6 +68,7 @@ def convert_model(model, verbose=True):
 
         if verbose:
             print(f"--- Converting Module: {name}")
+        
         parent_name = ".".join(name.split(".")[:-1])
         layer_name = name[len(parent_name) + 1:]
 
@@ -131,7 +141,8 @@ if __name__ == "__main__":
     do_generation = args.do_generation
 
     print("Loading gptq model...")
-    model = AutoModelForCausalLM.from_pretrained(model_id, device_map="auto")
+    model = AutoModelForCausalLM.from_pretrained(model_id, device_map="cuda:0")
+    model.to("cuda")
     tokenizer = AutoTokenizer.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
 
     # Validate that this model is compatible with Marlin.

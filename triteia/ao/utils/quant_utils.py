@@ -25,10 +25,11 @@ def unpack_4bit_to_32bit_signed(qweight, qzeros):
     for col in range(unpacked_zeros.shape[1]):
         i = col % 8
         unpacked_zeros[:, col] = (qzeros[:, col // 8] >> (4 * i)) & 0xF
+
     if not torch.all(unpacked_zeros == 7):
         raise ValueError(
             "Marlin kernel is compatible only with checkpoints using symmetric quantization."
-            "Found non-symmetric quantization for the weight {name}."
+            "Found non-symmetric quantization for the weight"
         )
     return unpacked_weights, unpacked_zeros + 1
 
