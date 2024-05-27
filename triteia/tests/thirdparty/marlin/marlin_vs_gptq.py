@@ -76,14 +76,21 @@ marlin_layer = marlin.Layer_2_4(
     outfeatures = input_dim,
     groupsize=-1,
 )
-marlin_layer.B = marlin_tensors['B'].to(device)
-marlin_layer.s = marlin_tensors['s'].to(device)
+marlin_layer.B = marlin_tensors['qweight'].to(device)
+marlin_layer.s = marlin_tensors['scales'].to(device)
 marlin_layer.meta = marlin_tensors['meta'].to(device)
 
 print(f"marlin_layer.B: {marlin_layer.B.shape}, marlin_layer.s: {marlin_layer.s.shape}, marlin_layer.meta: {marlin_layer.meta.shape}")
 
 marlin_layer.workspace = workspace
-
-output = marlin_layer(x)
-
+C = torch.zeros((1, input_dim), dtype=torch.half, device=device)
+output = marlin.mul_2_4(
+    x.view((-1, x.shape[-1])),
+    marlin_layer.B,
+    marlin_layer.meta,
+    C,
+    marlin_layer.s,
+    workspace,
+)
+output = C
 print(f"diff: {(output - triton_output).mean()}")
