@@ -7,24 +7,6 @@ def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None
     mask = indices != -1
     valid_indices = indices[mask]
     unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
-    start = 0
-    for id, count in zip(unique_indices, counts):
-        idx_mask = indices == id
-        inp = x[idx_mask]
-        marlin.mul_2_4(
-            inp,
-            qweight[id],
-            metas[id],
-            y[start:start+count,:],
-            scale[id],
-            workspace,
-        )
-    return y
-
-def ibmm_sparse_marlin_ref(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None):
-    mask = indices != -1
-    valid_indices = indices[mask]
-    unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
     for id, count in zip(unique_indices, counts):
         idx_mask = indices == id
         inp = x[idx_mask]
@@ -44,7 +26,6 @@ def ibmm_marlin(bitwidth, indices, y, x, qweight, scale, g_idx=None, bias=None):
     # sort x according to indices,
     # assuming indices is sorted
     # NOTE: double check in vllm!
-    
     mask = indices != -1
     valid_indices = indices[mask]
     unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
@@ -66,25 +47,3 @@ def ibmm_marlin_native(indices, y, x, qweight, scale):
     # convert indices to long type
     indices = indices.long()
     marlin.ibmm(x, qweight, y, scale, indices, workspace)
-    
-def ibmm_marlin_vectorized(bitwidth, indices, y, x, qweight, scale, g_idx=None, bias=None):
-    # sort x according to indices,
-    # assuming indices are sorted
-    # NOTE: double check in vllm!
-    mask = indices != -1
-    valid_indices = indices[mask]
-    unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
-    start = 0
-    for id, count in zip(unique_indices, counts):
-        inp_mask = indices == id
-        inp = x[inp_mask]
-        marlin.mul_stream(
-            inp,
-            qweight[id],
-            y[start:start+count,:],
-            scale[id],
-            workspace,
-            sms=-1,
-        )
-        start += count
-    return y

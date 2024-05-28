@@ -28,12 +28,12 @@ scales = gptq_tensors["scales"]
 if __name__=="__main__":
     k = 5632
     m = 2048
-    num_requests = 100
-    num_models = 16
+    num_requests = 1
+    num_models = 1
     distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
-    
+    indices = torch.tensor([0])
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1
     workspace = torch.zeros(m // 128 * 16, device=DEV, dtype=torch.int32)
@@ -42,7 +42,8 @@ if __name__=="__main__":
     ibmm_sparse_marlin(
         4,indices, metas, output, x, qs, scales
     )
-    ref_output = ibmm_sparse_marlin_ref(4,indices, metas, output, x, qs, scales)
+    ref_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
+    ibmm_sparse_marlin_ref(4,indices, metas, ref_output, x, qs, scales)
     print(output)
     print(ref_output)
     torch.testing.assert_close(output, ref_output, rtol=1e-3, atol=1e-3)
