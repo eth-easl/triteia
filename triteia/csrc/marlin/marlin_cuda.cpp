@@ -53,6 +53,7 @@ void mul(const torch::Tensor &A, const torch::Tensor &B, torch::Tensor &C,
   int err = marlin_cuda(A.data_ptr(), B.data_ptr(), C.data_ptr(), s.data_ptr(),prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize,
                         dev, at::cuda::getCurrentCUDAStream(dev), thread_k,
                         thread_n, sms, max_par);
+  
   if (err == ERR_PROB_SHAPE) {
     AT_ERROR("Problem (m=", prob_m, ", n=", prob_n, ", k=", prob_k, ")",
              " not compatible with thread_k=", thread_k,

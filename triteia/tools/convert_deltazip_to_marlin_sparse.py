@@ -8,6 +8,25 @@ from triteia.utils.io import save_tensors
 from triteia.ao.utils.quant_utils import dequantize_weight
 from triteia.utils.compressor import LosslessCompressor
 
+# NOTE: This is only for llama-series models
+column_chunking_modules = [
+    "self_attn.q_proj",
+    "self_attn.k_proj",
+    "self_attn.v_proj",
+    "mlp.gate_proj",
+    "mlp.up_proj",
+]
+
+row_chunking_modules = [
+    "self_attn.o_proj",
+    "mlp.down_proj",
+]
+
+uncompressed_row_chunking_modules = [
+    "embed_tokens",
+    "lm_head",
+]
+
 @torch.no_grad()
 def convert_model(args, verbose=True):
     DEV = "cuda:0"
@@ -23,6 +42,7 @@ def convert_model(args, verbose=True):
             if args.lossless:
                 tensors_dtypes = json.loads(metadata["dtype"])
                 tensors_shapes = json.loads(metadata["shape"])
+    
     if args.lossless:
         with cp.cuda.Device(0):
             for key in tensors.keys():
@@ -49,18 +69,23 @@ def convert_model(args, verbose=True):
         num_rows = dequantized_weight.shape[0]
         num_columns = dequantized_weight.shape[1]
         for i in range(args.tp_size):
-            pbar.set_description(f"{module}, tp={i}")
-            tp_weight = dequantized_weight[:, i * num_columns // args.tp_size: (i + 1) * num_columns // args.tp_size]
-            tp_scales = scales[:, i * num_columns // args.tp_size: (i + 1) * num_columns // args.tp_size]
+            if any([key in module for key in column_chunking_modules]):
+                pbar.set_description(f"{module}, tp={i}, column chunking")
+                tp_weight = dequantized_weight[:, i * num_columns // args.tp_size: (i + 1) * num_columns // args.tp_size]
+                tp_scales = scales[:, i * num_columns // args.tp_size: (i + 1) * num_columns // args.tp_size]
+            elif any([key in module for key in row_chunking_modules]):
+                pbar.set_description(f"{module}, tp={i}, row chunking")
+                tp_weight = dequantized_weight[i * num_rows // args.tp_size: (i + 1) * num_rows // args.tp_size, :]
+                tp_scales = scales
+            else:
+                raise ValueError(f"Module {module} unknown...")
             k, m = tp_weight.shape[0], tp_weight.shape[1]
             k_sp = k // 2
             layer = MarlinLayer(
-                infeatures=tp_weight.shape[1],
-                outfeatures=tp_weight.shape[0],
+                infeatures=tp_weight.shape[0],
+                outfeatures=tp_weight.shape[1],
                 groupsize=-1
             )
-            layer.n = m
-            layer.k = k
             layer.groupsize = k
             layer.B = torch.empty((k_sp // 16, m * 16 // 8), dtype=torch.int, device=DEV)
             layer.meta = torch.empty((m, k // 16), dtype=torch.int16, device=DEV)
@@ -73,13 +98,20 @@ def convert_model(args, verbose=True):
             new_tensors[module + f".{i}.qweight"] = layer.B
             new_tensors[module + f".{i}.scales"] = layer.s
             new_tensors[module + f".{i}.meta"] = layer.meta
-        
         remaining_keys.remove(module + ".qweight")
         remaining_keys.remove(module + ".qzeros")
         remaining_keys.remove(module + ".scales")
         remaining_keys.remove(module + ".g_idx")
-    new_tensors.update({key: tensors[key] for key in remaining_keys})
-    return new_tensors        
+    # now processing remaining keys
+    for module in remaining_keys:
+        if any([key in module for key in uncompressed_row_chunking_modules]):
+            weight = tensors[module]
+            module_name = module.removesuffix(".weight")
+            num_rows = weight.shape[0]
+            for i in range(args.tp_size):
+                tp_weight = weight[i * num_rows // args.tp_size: (i + 1) * num_rows // args.tp_size, :]
+                new_tensors[module_name + f".{i}.weight"] = tp_weight
+    return new_tensors
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
