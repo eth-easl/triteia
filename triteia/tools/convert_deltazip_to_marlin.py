@@ -1,10 +1,13 @@
-from tqdm import tqdm
+import gc
+import json
+import cupy as cp
 import safetensors as st
 import torch, argparse, copy
-from triteia.lib.marlin import Layer_2_4 as MarlinLayer
-from triteia.lib.marlin.semi_structured_conversions import sparse_semi_structured_from_dense_cutlass
-from triteia.utils.io import save_tensors
+from triteia.lib.marlin import Layer as MarlinLayer
 from triteia.ao.utils.quant_utils import dequantize_weight
+from triteia.utils.io import save_tensors
+from auto_gptq.nn_modules.qlinear.qlinear_cuda_old import QuantLinear
+from tqdm import tqdm
 
 @torch.no_grad()
 def convert_model(args, verbose=True):
@@ -25,21 +28,26 @@ def convert_model(args, verbose=True):
             tensors[module + ".qzeros"],
             tensors[module + ".scales"],
         ).to(torch.float16)
+        linear_module = torch.nn.Linear(
+            in_features=dequantized_weight.shape[1],
+            out_features=dequantized_weight.shape[0],
+            bias=False,
+            dtype=torch.float16,
+            device="cuda")
+        linear_module.weight.data.copy_(dequantized_weight)
+        
         new_module = MarlinLayer(
-            infeatures=dequantized_weight.shape[1],
-            outfeatures=dequantized_weight.shape[0],
-            groupsize=-1
-        )
+            infeatures=linear_module.in_features,
+            outfeatures=linear_module.out_features,
+            groupsize=-1)
         new_module.pack(
-            dequantized_weight,
+            linear_module,
             scales=copy.deepcopy(tensors[module + ".scales"].t())
         )
-        new_tensors[module + ".B"] = new_module.B
-        new_tensors[module + ".s"] = new_module.s
-        new_tensors[module + ".meta"] = new_module.meta
-        
+        new_tensors[module + ".qweight"] = new_module.B
+        new_tensors[module + ".scales"] = new_module.s
     return new_tensors        
-    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ckpt", type=str)

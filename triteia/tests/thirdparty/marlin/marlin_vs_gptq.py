@@ -53,24 +53,6 @@ print(gptq_tensors['qweight'].shape)
 
 # -- marlin computes
 workspace = torch.zeros(input_dim//128*16, device=device, dtype=torch.int)
-# output = torch.empty(
-#     x.shape[:-1] + (marlin_tensors['s'].shape[1],),
-#     dtype=x.dtype,
-#     device=x.device,
-# )
-# dense_weight = marlin_tensors['B']
-# sparse_weight, meta = sparse_semi_structured_from_dense_cutlass(dense_weight)
-# scales = marlin_tensors['s']
-
-# marlin.mul_2_4(
-#     x.view((-1, x.shape[-1])),
-#     sparse_weight,
-#     meta,
-#     output.view((-1, output.shape[-1])),
-#     scales,
-#     workspace,
-# )
-
 marlin_layer = marlin.Layer_2_4(
     infeatures = input_dim,
     outfeatures = input_dim,
@@ -84,13 +66,14 @@ print(f"marlin_layer.B: {marlin_layer.B.shape}, marlin_layer.s: {marlin_layer.s.
 
 marlin_layer.workspace = workspace
 C = torch.zeros((1, input_dim), dtype=torch.half, device=device)
-output = marlin.mul_2_4(
-    x.view((-1, x.shape[-1])),
-    marlin_layer.B,
-    marlin_layer.meta,
-    C,
-    marlin_layer.s,
-    workspace,
-)
-output = C
-print(f"diff: {(output - triton_output).mean()}")
+# output = marlin.mul_2_4(
+#     x.view((-1, x.shape[-1])),
+#     marlin_layer.B,
+#     marlin_layer.meta,
+#     C,
+#     marlin_layer.s,
+#     workspace,
+# )
+output = marlin_layer(x)
+print(f"max diff triton-torch: {(triton_output - torch_output).max()}")
+print(f"max diff: {(output - triton_output).max()}")

@@ -283,13 +283,13 @@ class Layer_2_4(nn.Module):
         self.n = outfeatures
         self.groupsize = groupsize
         self.register_buffer(
-            "B", torch.empty((self.k // 16 // 2, self.n * 16 // 8), dtype=torch.int)
+            "B", torch.empty((self.k // 16, self.n * 16 // 8), dtype=torch.int)
         )
         self.register_buffer(
             "meta", torch.empty((self.n, self.k // 16), dtype=torch.int16)
         )
         self.register_buffer(
-            "s", torch.empty((self.k // 2 // (groupsize // 2), self.n), dtype=torch.half)
+            "s", torch.empty((self.k // groupsize, self.n), dtype=torch.half)
         )
         # 128 is currently the minimum `tile_n`, hence it gives the maximum workspace size; 16 is the default `max_par`
         self.register_buffer(
@@ -304,6 +304,7 @@ class Layer_2_4(nn.Module):
         C = torch.empty(
             A.shape[:-1] + (self.s.shape[1],), dtype=A.dtype, device=A.device
         )
+
         mul_2_4(
             A.view((-1, A.shape[-1])),
             self.B,
@@ -339,6 +340,9 @@ class Layer_2_4(nn.Module):
             w = w.permute(1, 0, 2)
             w = w.reshape((self.groupsize, -1))
             s = s.reshape((1, -1))
+        
+        mask = mask_creator(w.T).cuda().bool()
+
         w = torch.round(w / s).int()
         w += (maxq + 1) // 2
         w = torch.clamp(w, 0, maxq)
@@ -349,16 +353,13 @@ class Layer_2_4(nn.Module):
             s = s.reshape((-1, len(scale_perm)))[:, scale_perm]
         else:
             s = s.reshape((-1, len(scale_perm_single)))[:, scale_perm_single]
-
-        # mask = mask_creator(w.T).cuda().bool()
-        # w = mask * w.T
-        w = w.t().contiguous()
+        
+        w = mask * w.T
+        
         w, meta = sparse_semi_structured_from_dense_cutlass(w)
         w = w.t()
-
         self.k = self.k // 2
         self.groupsize = self.groupsize // 2
-
         s = s.reshape((-1, self.n)).contiguous()
         w = w.reshape((self.k // tile, tile, self.n // tile, tile))
         w = w.permute((0, 2, 1, 3))
