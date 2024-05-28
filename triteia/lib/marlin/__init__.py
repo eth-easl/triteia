@@ -304,7 +304,6 @@ class Layer_2_4(nn.Module):
         C = torch.empty(
             A.shape[:-1] + (self.s.shape[1],), dtype=A.dtype, device=A.device
         )
-
         mul_2_4(
             A.view((-1, A.shape[-1])),
             self.B,
@@ -313,7 +312,6 @@ class Layer_2_4(nn.Module):
             self.s,
             self.workspace,
         )
-        # mul_2_4(A, self.B, self.meta, C, self.s, self.workspace)
         return C
 
     def pack(self, weight, scales, trans=False):

@@ -28,20 +28,19 @@ def convert_model(args, verbose=True):
             tensors[module + ".qzeros"],
             tensors[module + ".scales"],
         ).to(torch.float16)
-        linear_module = torch.nn.Linear(
-            in_features=dequantized_weight.shape[1],
-            out_features=dequantized_weight.shape[0],
-            bias=False,
-            dtype=torch.float16,
-            device="cuda")
-        linear_module.weight.data.copy_(dequantized_weight)
-        
+        # linear_module = torch.nn.Linear(
+        #     in_features=dequantized_weight.shape[1],
+        #     out_features=dequantized_weight.shape[0],
+        #     bias=False,
+        #     dtype=torch.float16,
+        #     device="cuda")
+        # linear_module.weight.data.copy_(dequantized_weight)
         new_module = MarlinLayer(
-            infeatures=linear_module.in_features,
-            outfeatures=linear_module.out_features,
+            infeatures=dequantized_weight.shape[1],
+            outfeatures=dequantized_weight.shape[0],
             groupsize=-1)
         new_module.pack(
-            linear_module,
+            dequantized_weight,
             scales=copy.deepcopy(tensors[module + ".scales"].t())
         )
         new_tensors[module + ".qweight"] = new_module.B

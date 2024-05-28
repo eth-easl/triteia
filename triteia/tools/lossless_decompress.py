@@ -6,7 +6,6 @@ from triteia.utils.compressor import LosslessCompressor
 from safetensors.torch import save_file
 
 def main(args):
-    print(args)
     tensors = {}
     with st.safe_open(args.ckpt, framework="torch", device="cuda:0") as f:
         metadata = f.metadata()
