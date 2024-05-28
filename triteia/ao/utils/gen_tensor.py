@@ -86,7 +86,7 @@ def gen_pruned_quant4_NT(m, k, groupsize=-1, DEV="cuda:0"):
     layer.B = torch.empty((k_sp // 16, m * 16 // 8), dtype=torch.int, device=DEV)
     layer.meta = torch.empty((m, k // 16), dtype=torch.int16, device=DEV)
     layer.s = torch.empty((k_sp // (groupsize // 2), m), dtype=torch.half, device=DEV)
-    layer.pack(linear, s, True)
+    layer.pack(linear.weight, s, True)
     q = layer.B
     s = layer.s
     meta = layer.meta
