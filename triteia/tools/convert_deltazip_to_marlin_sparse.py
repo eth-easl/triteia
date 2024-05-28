@@ -40,35 +40,40 @@ def convert_model(args, verbose=True):
     ]
     pbar = tqdm(quantized_modules, position=0, leave=True)
     for module in pbar:
-        pbar.set_description(f"{module}")
         dequantized_weight = dequantize_weight(
             tensors[module + ".qweight"],
             tensors[module + ".qzeros"],
             tensors[module + ".scales"],
         ).to(torch.float16).t()
         scales = tensors[module + ".scales"]
-        # k=5632, m = 2048
-        k, m = dequantized_weight.shape[0], dequantized_weight.shape[1]
-        k_sp = k // 2
-        layer = MarlinLayer(
-            infeatures=dequantized_weight.shape[1],
-            outfeatures=dequantized_weight.shape[0],
-            groupsize=-1
-        )
-        layer.n = m
-        layer.k = k
-        layer.groupsize = k
-        layer.B = torch.empty((k_sp // 16, m * 16 // 8), dtype=torch.int, device=DEV)
-        layer.meta = torch.empty((m, k // 16), dtype=torch.int16, device=DEV)
-        layer.s = torch.empty((k_sp // (k // 2), m), dtype=torch.half, device=DEV)
-        layer.pack(
-            dequantized_weight,
-            scales=scales,
-            trans=True,
-        )
-        new_tensors[module + ".qweight"] = layer.B
-        new_tensors[module + ".scales"] = layer.s
-        new_tensors[module + ".meta"] = layer.meta
+        num_rows = dequantized_weight.shape[0]
+        num_columns = dequantized_weight.shape[1]
+        for i in range(args.tp_size):
+            pbar.set_description(f"{module}, tp={i}")
+            tp_weight = dequantized_weight[:, i * num_columns // args.tp_size: (i + 1) * num_columns // args.tp_size]
+            tp_scales = scales[:, i * num_columns // args.tp_size: (i + 1) * num_columns // args.tp_size]
+            k, m = tp_weight.shape[0], tp_weight.shape[1]
+            k_sp = k // 2
+            layer = MarlinLayer(
+                infeatures=tp_weight.shape[1],
+                outfeatures=tp_weight.shape[0],
+                groupsize=-1
+            )
+            layer.n = m
+            layer.k = k
+            layer.groupsize = k
+            layer.B = torch.empty((k_sp // 16, m * 16 // 8), dtype=torch.int, device=DEV)
+            layer.meta = torch.empty((m, k // 16), dtype=torch.int16, device=DEV)
+            layer.s = torch.empty((k_sp // (k // 2), m), dtype=torch.half, device=DEV)
+            layer.pack(
+                tp_weight,
+                scales=tp_scales,
+                trans=True,
+            )
+            new_tensors[module + f".{i}.qweight"] = layer.B
+            new_tensors[module + f".{i}.scales"] = layer.s
+            new_tensors[module + f".{i}.meta"] = layer.meta
+        
         remaining_keys.remove(module + ".qweight")
         remaining_keys.remove(module + ".qzeros")
         remaining_keys.remove(module + ".scales")
@@ -79,6 +84,7 @@ def convert_model(args, verbose=True):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ckpt", type=str)
+    parser.add_argument("--tp-size", type=int)
     parser.add_argument("--save-path", type=str)
     parser.add_argument("--lossless", action="store_true")
     args = parser.parse_args()
