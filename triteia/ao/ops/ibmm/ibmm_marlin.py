@@ -20,7 +20,7 @@ def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None
             y[idx_mask] = output
     return y
 
-def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None):
+def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None, parallel=False):
     unique_indices, counts = torch.unique(indices, sorted=False, return_counts=True)
     first_nonnegative = torch.where(indices != -1)[0][0]
     if first_nonnegative > 0:
@@ -39,31 +39,6 @@ def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_i
         workspace,
         start,
         counts,
+        parallel=parallel
     )
     return y
-
-def ibmm_marlin(bitwidth, indices, y, x, qweight, scale, g_idx=None, bias=None):
-    # sort x according to indices,
-    # assuming indices is sorted
-    # NOTE: double check in vllm!
-    mask = indices != -1
-    valid_indices = indices[mask]
-    unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
-    start = 0
-    for id, count in zip(unique_indices, counts):
-        inp_mask = indices == id
-        inp = x[inp_mask]
-        marlin.mul(
-            inp,
-            qweight[id],
-            y[start:start+count,:],
-            scale[id],
-            workspace,
-        )
-        start += count
-    return y
-
-def ibmm_marlin_native(indices, y, x, qweight, scale):
-    # convert indices to long type
-    indices = indices.long()
-    marlin.ibmm(x, qweight, y, scale, indices, workspace)

@@ -35,18 +35,20 @@ def benchmark(K, M, num_reqs, num_models, dist):
     # warmup here
     output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
     ibmm_sparse_marlin_stream(
-        4,indices, metas, output, x, qs, scales
+        4,indices, metas, output, x, qs, scales, parallel=False
     )
     
     # actual measure
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
+    torch.cuda.nvtx.range_push("ibmm_sparse_marlin_stream parallel=False")
     start.record()
     ibmm_sparse_marlin_stream(
-        4,indices, metas, output, x, qs, scales
+        4,indices, metas, output, x, qs, scales, parallel=False
     )
     end.record()
+    torch.cuda.nvtx.range_pop()
     torch.cuda.synchronize()
     stream_time = start.elapsed_time(end)
     
@@ -63,6 +65,29 @@ def benchmark(K, M, num_reqs, num_models, dist):
     end.record()
     torch.cuda.synchronize()
     fp16_time = start.elapsed_time(end)
+    
+    # warmup here
+    parallel_stream_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
+    ibmm_sparse_marlin_stream(
+        4,indices, metas, parallel_stream_output, x, qs, scales, parallel=True
+    )
+    
+    # actual measure
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    parallel_stream_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
+    # nvtx
+    torch.cuda.nvtx.range_push("ibmm_sparse_marlin_stream parallel=True")
+    start.record()
+    
+    ibmm_sparse_marlin_stream(
+        4,indices, metas, parallel_stream_output, x, qs, scales, parallel=True
+    )
+    end.record()
+    torch.cuda.synchronize()
+    torch.cuda.nvtx.range_pop()
+    parallel_stream_time = start.elapsed_time(end)
+    
     result.append({
         "M": M,
         "K": K,
@@ -72,9 +97,10 @@ def benchmark(K, M, num_reqs, num_models, dist):
         "for_loop_time": for_loop_time,
         "stream_time": stream_time,
         "fp16_time": fp16_time,
+        "parallel_stream_time": parallel_stream_time,
     })
     if not torch.allclose(ref_output, output):
-        raise RuntimeError("Error")
+        raise RuntimeError(f"Error at M={M}, K={K}, num_reqs={num_reqs}, num_models={num_models}, dist={dist}")
     return result
     
 if __name__ == "__main__":
@@ -82,7 +108,7 @@ if __name__ == "__main__":
     Ks = [4096]
     Ms = [4096]
     num_requests = [100]
-    num_models = [2,4,8,16,32]
+    num_models = [2,4,8,16,32, 64]
     distribution = ['uniform']
     results = []
     for K in Ks:

@@ -50,7 +50,9 @@ setup(
                 "triteia/csrc/marlin/marlin_cuda_kernel_nm.cu",
             ],
             extra_compile_args={
-                "nvcc": ["-arch=sm_86", "--ptxas-options=-v", "-lineinfo", "-ltbb"]
+                "nvcc": [
+                    "-arch=sm_86", "--ptxas-options=-v", "-lineinfo",
+                ]
             },
         ),
     ],
