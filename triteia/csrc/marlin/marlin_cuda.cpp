@@ -21,6 +21,8 @@
 #include <torch/all.h>
 #include <torch/python.h>
 #include <iostream>
+#include <numeric>
+#include <execution>
 using namespace torch::indexing;
 
 namespace marlin {
@@ -119,9 +121,42 @@ void mul_stream(
   }
 }
 
+void mul_stream_parallel(
+    const torch::Tensor &A, const torch::Tensor &B, 
+    const torch::Tensor &meta, torch::Tensor &C, 
+    const torch::Tensor &s, const torch::Tensor &indices, 
+    torch::Tensor &workspace, 
+    const torch::Tensor &starts, const torch::Tensor &counts, 
+    int thread_k = -1, int thread_n = -1, 
+    int sms = -1, int max_par = 8
+  ) {
+  int num_elements = indices.size(0);
+  std::vector<int> indices_ptr(num_elements);
+  std::iota(indices_ptr.begin(), indices_ptr.end(), 0);
+  std::for_each(
+    std::execution::par_unseq,
+    indices_ptr.begin(), indices_ptr.end(),
+    [&](int i) {
+      int start = starts[i].item<int>();
+      auto sliced_C = C.slice(0, start, start + counts[i].item<int>());
+      auto my_workspace = workspace[i];
+      mul_2_4(
+        A.slice(0, start, start+counts[i].item<int>()),
+        B[indices[i]],
+        meta[indices[i]],
+        sliced_C,
+        s[indices[i]],
+        my_workspace,
+        thread_k, thread_n, sms, max_par
+      );
+    }
+  );
+}
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("mul", &mul, "Marlin FP16xINT4 matmul.");
   m.def("mul_2_4", &mul_2_4, "Marlin FP16xINT4 matmul with 2:4 sparsity.");
   m.def("mul_stream", &mul_stream, "Marlin FP16xINT4 matmul with stream.");
+  m.def("mul_stream_parallel", &mul_stream_parallel, "Marlin FP16xINT4 matmul with stream.");
 }
 } // namespace marlin
