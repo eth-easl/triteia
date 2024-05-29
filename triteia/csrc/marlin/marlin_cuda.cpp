@@ -97,23 +97,23 @@ void mul_stream(
     const torch::Tensor &A, const torch::Tensor &B, 
     const torch::Tensor &meta, torch::Tensor &C, 
     const torch::Tensor &s, const torch::Tensor &indices, 
-    torch::Tensor &workspace, const torch::Tensor &starts, const torch::Tensor &counts, 
+    torch::Tensor &workspace, 
+    const torch::Tensor &starts, const torch::Tensor &counts, 
     int thread_k = -1, int thread_n = -1, 
     int sms = -1, int max_par = 8
   ) {
-  // std::cout << indices << std::endl;
-  
   for (int i=0; i<indices.size(0); i++) {
     int start = starts[i].item<int>();
-    printf("# of indices %d: %d\n", indices[i].item<int>(), counts[i].item<int>());
     auto sliced_C = C.slice(0, start, start + counts[i].item<int>());
+    auto my_workspace = workspace[i];
+    // torch::Tensor my_workspace = torch::empty({2048}, torch::kFloat16).to(C.device());
     mul_2_4(
       A.slice(0, start, start+counts[i].item<int>()),
-      B[i],
-      meta[i],
+      B[indices[i]],
+      meta[indices[i]],
       sliced_C,
-      s[i],
-      workspace,
+      s[indices[i]],
+      my_workspace,
       thread_k, thread_n, sms, max_par
     );
   }

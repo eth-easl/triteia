@@ -11,7 +11,7 @@ def benchmark(K, M, num_reqs, num_models, dist):
         num_models,
         M, K, groupsize=-1, device=DEV
     )
-    x = torch.randn((num_requests, K), dtype=torch.float16, device=DEV)
+    x = torch.randn((num_reqs, K), dtype=torch.float16, device=DEV)
     # warmup here
     
     start = torch.cuda.Event(enable_timing=True)

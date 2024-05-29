@@ -2,14 +2,11 @@ import torch
 import numpy as np
 
 def generate_model_distribution(distribution, num_queries, num_models):
-    to_eval_models = list(range(0, num_models))
-    
+    to_eval_models = list(range(-1, num_models))
     if distribution == "uniform":
         models = np.random.choice(to_eval_models, num_queries)
-    
     if distribution == "distinct":
         models = to_eval_models
-        
     if distribution.startswith("zipf"):
         alpha = float(distribution.split(":")[1])
         assert alpha > 1, "alpha must be greater than 1"
