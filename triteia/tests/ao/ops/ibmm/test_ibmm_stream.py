@@ -28,7 +28,7 @@ scales = gptq_tensors["scales"]
 
 if __name__=="__main__":
     k = 2048
-    m = 4096
+    m = 2048
     num_requests = 32
     num_models = 10
     distribution = "uniform"

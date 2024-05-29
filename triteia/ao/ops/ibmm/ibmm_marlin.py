@@ -28,6 +28,7 @@ def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_i
         counts = counts[1:]
     start = torch.cat((torch.tensor([first_nonnegative]).cuda(), (torch.cumsum(counts, dim=0)+ first_nonnegative)[:-1]))
     workspace = torch.zeros(len(unique_indices), y.shape[1] // 8, device=x.device)
+    
     marlin.mul_stream(
         x,
         qweight,
