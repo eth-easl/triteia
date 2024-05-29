@@ -39,8 +39,6 @@ from .semi_structured_conversions import (
     mask_creator,
 )
 
-def ibmm(A, B, C, s, indices, workspace, thread_k=-1, thread_n=-1, sms=-1, max_par=16):
-    marlin_cuda.ibmm(A, B, C, s, indices, workspace, thread_k, thread_n, sms, max_par)
 
 def mul_2_4(A, B, meta, C, s, workspace, thread_k=-1, thread_m=-1, sms=-1, max_par=16):
     """Marlin FP16x(INT4+2:4 sparsity) multiply; can be used within `torch.compile`.
@@ -55,7 +53,8 @@ def mul_2_4(A, B, meta, C, s, workspace, thread_k=-1, thread_m=-1, sms=-1, max_p
     @sms: number of SMs to use for the kernel (can usually be left as auto -1)
     @max_par: maximum number of batch 64 problems to solve in parallel for large input sizes
     """
-    marlin_cuda.mul_2_4(A, B, meta, C, s, workspace, thread_k, thread_m, sms, max_par)
+    marlin_cuda.mul_2_4(A, B, meta, C, s, workspace,
+                        thread_k, thread_m, sms, max_par)
 
 
 def mul(A, B, C, s, workspace, thread_k=-1, thread_n=-1, sms=-1, max_par=16, stream=0):
@@ -72,25 +71,13 @@ def mul(A, B, C, s, workspace, thread_k=-1, thread_n=-1, sms=-1, max_par=16, str
     """
     marlin_cuda.mul(A, B, C, s, workspace, thread_k, thread_n, sms, max_par)
 
-def mul_stream(A, B, C, s, workspace, thread_k=-1, thread_n=-1, sms=-1, max_par=16, stream=0):
-    """Marlin FP16xINT4 multiply; can be used within `torch.compile`.
-    @A: `torch.half` input matrix of shape `(m, k)` in standard row-major layout
-    @B: `torch.int` weight matrix of original shape `(k, n)` in Marlin format; see `Layer.pack()`
-    @C: `torch.half` out matrix of shape `(m, n)` in standard row-major layout
-    @s: `torch.half` scales of shape `(m / groupsize, n)`
-    @workspace: `torch.int` tensor with at least `n / 128 * max_par` entries that are all zero
-    @thread_k: `k` size of a thread_tile in `B` (can usually be left as auto -1)
-    @thread_n: `n` size of a thread_tile in `B` (can usually be left as auto -1)
-    @sms: number of SMs to use for the kernel (can usually be left as auto -1)
-    @max_par: maximum number of batch 64 problems to solve in parallel for large input sizes
-    """
-    marlin_cuda.mul_stream(A, B, C, s, workspace, thread_k, thread_n, sms, max_par)
 
-
-def ibmm(A, B, C, s, indices, workspace, thread_k=-1, thread_n=-1, sms=-1, max_par=16):
-    marlin_cuda.ibmm(A, B, C, s, indices, workspace, thread_k, thread_n, sms, max_par)
+def mul_stream(A, B, meta, C, s, indices, workspace,counts, thread_k=-1, thread_n=-1, sms=-1, max_par=16):
+    marlin_cuda.mul_stream(A, B, meta, C, s, indices,
+                           workspace,counts, thread_k, thread_n, sms, max_par)
 
 # Precompute permutations for Marlin weight and scale shuffling
+
 def _get_perms():
     perm = []
     for i in range(32):
@@ -115,7 +102,8 @@ def _get_perms():
         scale_perm.extend([i + 8 * j for j in range(8)])
     scale_perm_single = []
     for i in range(4):
-        scale_perm_single.extend([2 * i + j for j in [0, 1, 8, 9, 16, 17, 24, 25]])
+        scale_perm_single.extend(
+            [2 * i + j for j in [0, 1, 8, 9, 16, 17, 24, 25]])
     return perm, scale_perm, scale_perm_single
 
 
@@ -149,7 +137,8 @@ def _get_perms_NT():
         scale_perm.extend([i + 8 * j for j in range(8)])
     scale_perm_single = []
     for i in range(8):
-        scale_perm_single.extend([4 * i + j for j in [0, 1, 2, 3, 32, 33, 34, 35]])
+        scale_perm_single.extend(
+            [4 * i + j for j in [0, 1, 2, 3, 32, 33, 34, 35]])
     return perm, scale_perm, scale_perm_single
 
 
@@ -169,7 +158,8 @@ class Layer(nn.Module):
         if groupsize not in [-1, 128]:
             raise ValueError('Only groupsize -1 and 128 are supported.')
         if infeatures % 128 != 0 or outfeatures % 256 != 0:
-            raise ValueError('`infeatures` must be divisible by 128 and `outfeatures` by 256.')
+            raise ValueError(
+                '`infeatures` must be divisible by 128 and `outfeatures` by 256.')
         if groupsize == -1:
             groupsize = infeatures
         if infeatures % groupsize != 0:
@@ -177,21 +167,26 @@ class Layer(nn.Module):
         self.k = infeatures
         self.n = outfeatures
         self.groupsize = groupsize
-        self.register_buffer('B', torch.empty((self.k // 16, self.n * 16 // 8), dtype=torch.int))
-        self.register_buffer('s', torch.empty((self.k // groupsize, self.n), dtype=torch.half))
+        self.register_buffer('B', torch.empty(
+            (self.k // 16, self.n * 16 // 8), dtype=torch.int))
+        self.register_buffer('s', torch.empty(
+            (self.k // groupsize, self.n), dtype=torch.half))
         # 128 is currently the minimum `tile_n`, hence it gives the maximum workspace size; 16 is the default `max_par`
-        self.register_buffer('workspace', torch.zeros(self.n // 128 * 16, dtype=torch.int), persistent=False)
+        self.register_buffer('workspace', torch.zeros(
+            self.n // 128 * 16, dtype=torch.int), persistent=False)
 
     def forward(self, A):
-        C = torch.empty(A.shape[:-1] + (self.s.shape[1],), dtype=A.dtype, device=A.device)
-        mul(A.view((-1, A.shape[-1])), self.B, C.view((-1, C.shape[-1])), self.s, self.workspace)
+        C = torch.empty(A.shape[:-1] + (self.s.shape[1],),
+                        dtype=A.dtype, device=A.device)
+        mul(A.view((-1, A.shape[-1])), self.B,
+            C.view((-1, C.shape[-1])), self.s, self.workspace)
         return C
 
     def pack(self, weight, scales):
         """Pack a fake-quantized linear layer into this actual Marlin representation.
         @linear: fake-quantized `torch.nn.Linear` layer to convert (must be of type `torch.half`)
         @scales: corresponding quantization scales of shape `(infeatures, groups)`
-        """ 
+        """
         if weight.dtype != torch.half:
             raise ValueError('Only `torch.half` weights are supported.')
         tile = 16
@@ -227,6 +222,7 @@ class Layer(nn.Module):
         self.B[:, :] = q.to(self.B.device)
         self.s[:, :] = s.to(self.s.device)
 
+
 def _get_perms_2_4():
     perm = []
     for i in range(32):
@@ -240,7 +236,8 @@ def _get_perms_2_4():
                 2 * (i % 4 + 4),
                 2 * (i % 4 + 4) + 1,
             ]:
-                perm1.append(16 * row + col_o * 256 + 8 * (col % 2) + 4 * block)
+                perm1.append(16 * row + col_o * 256 +
+                             8 * (col % 2) + 4 * block)
         for j in range(4):
             perm.extend([p + 1 * j for p in perm1])
     perm = np.array(perm)
@@ -338,7 +335,7 @@ class Layer_2_4(nn.Module):
             w = w.permute(1, 0, 2)
             w = w.reshape((self.groupsize, -1))
             s = s.reshape((1, -1))
-        
+
         mask = mask_creator(w.T).cuda().bool()
 
         w = torch.round(w / s).int()
@@ -351,9 +348,9 @@ class Layer_2_4(nn.Module):
             s = s.reshape((-1, len(scale_perm)))[:, scale_perm]
         else:
             s = s.reshape((-1, len(scale_perm_single)))[:, scale_perm_single]
-        
+
         w = mask * w.T
-        
+
         w, meta = sparse_semi_structured_from_dense_cutlass(w)
         w = w.t()
         self.k = self.k // 2
@@ -391,7 +388,8 @@ def replace_linear(module, name_filter=lambda n: True, groupsize=-1, name=""):
             setattr(
                 module,
                 attr,
-                Layer_2_4(tmp.in_features, tmp.out_features, groupsize=groupsize),
+                Layer_2_4(tmp.in_features, tmp.out_features,
+                          groupsize=groupsize),
             )
     for name1, child in module.named_children():
         replace_linear(

@@ -21,6 +21,23 @@ def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None
         y[idx_mask] += output[:count]
     return y
 
+def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None):
+    workspace = torch.zeros(16384 // 128 * 16, device=x.device)
+    mask = indices != -1
+    valid_indices = indices[mask]
+    unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
+    marlin.mul_stream(
+        x,
+        qweight,
+        metas,
+        y,
+        scale,
+        unique_indices,
+        workspace,
+        counts,
+    )
+    return y
+
 def ibmm_marlin(bitwidth, indices, y, x, qweight, scale, g_idx=None, bias=None):
     # sort x according to indices,
     # assuming indices is sorted
