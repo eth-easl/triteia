@@ -15,14 +15,16 @@
  * limitations under the License.
  */
 
-#include <ATen/cuda/CUDAContext.h>
 #include <ATen/Functions.h>
+#include <ATen/cuda/CUDAContext.h>
 #include <cuda_runtime.h>
+#include <omp.h>
 #include <torch/all.h>
 #include <torch/python.h>
+
+#include <execution>
 #include <iostream>
 #include <numeric>
-#include <execution>
 using namespace torch::indexing;
 
 namespace marlin {
@@ -33,7 +35,9 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
                     cudaStream_t stream = 0, int thread_k = -1,
                     int thread_m = -1, int sms = -1, int max_par = 16);
 
-int marlin_cuda(const void *A, const void *B, void *C, void *s, int prob_m,int prob_n, int prob_k, void *workspace, int groupsize = -1,int dev = 0, cudaStream_t stream = 0, int thread_k = -1,
+int marlin_cuda(const void *A, const void *B, void *C, void *s, int prob_m,
+                int prob_n, int prob_k, void *workspace, int groupsize = -1,
+                int dev = 0, cudaStream_t stream = 0, int thread_k = -1,
                 int thread_n = -1, int sms = -1, int max_par = 16);
 
 const int ERR_PROB_SHAPE = 1;
@@ -49,12 +53,14 @@ void mul(const torch::Tensor &A, const torch::Tensor &B, torch::Tensor &C,
   if (groupsize != -1 && groupsize * s.size(0) != prob_k)
     AT_ERROR("k=", prob_k, " not compatible with ", s.size(0), " groups.");
   if (workspace.numel() < prob_n / 128 * max_par)
-    AT_ERROR("workspace must be of size at least ", prob_n / 128 * max_par,".");
+    AT_ERROR("workspace must be of size at least ", prob_n / 128 * max_par,
+             ".");
   int dev = A.get_device();
-  int err = marlin_cuda(A.data_ptr(), B.data_ptr(), C.data_ptr(), s.data_ptr(),prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize,
+  int err = marlin_cuda(A.data_ptr(), B.data_ptr(), C.data_ptr(), s.data_ptr(),
+                        prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize,
                         dev, at::cuda::getCurrentCUDAStream(dev), thread_k,
                         thread_n, sms, max_par);
-  
+
   if (err == ERR_PROB_SHAPE) {
     AT_ERROR("Problem (m=", prob_m, ", n=", prob_n, ", k=", prob_k, ")",
              " not compatible with thread_k=", thread_k,
@@ -81,10 +87,11 @@ void mul_2_4(const torch::Tensor &A, const torch::Tensor &B,
     AT_ERROR("workspace must be of size at least ", prob_m / 128 * max_par,
              ".");
   int dev = A.get_device();
+  auto stream = at::cuda::getStreamFromPool(dev);
   int err = marlin_cuda_2_4(
       A.data_ptr(), B.data_ptr(), meta.data_ptr(), C.data_ptr(), s.data_ptr(),
       prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize, dev,
-      at::cuda::getCurrentCUDAStream(dev), thread_k, thread_m, sms, max_par);
+      stream, thread_k, thread_m, sms, max_par);
   if (err == ERR_PROB_SHAPE) {
     AT_ERROR("Problem (m=", prob_m, ", n=", prob_n, ", k=", prob_k, ")",
              " not compatible with thread_k=", thread_k,
@@ -95,68 +102,49 @@ void mul_2_4(const torch::Tensor &A, const torch::Tensor &B,
   }
 }
 
-void mul_stream(
-    const torch::Tensor &A, const torch::Tensor &B, 
-    const torch::Tensor &meta, torch::Tensor &C, 
-    const torch::Tensor &s, const torch::Tensor &indices, 
-    torch::Tensor &workspace, 
-    const torch::Tensor &starts, const torch::Tensor &counts, 
-    int thread_k = -1, int thread_n = -1, 
-    int sms = -1, int max_par = 8
-  ) {
-  for (int i=0; i<indices.size(0); i++) {
+void mul_stream(const torch::Tensor &A, const torch::Tensor &B,
+                const torch::Tensor &meta, torch::Tensor &C,
+                const torch::Tensor &s, const torch::Tensor &indices,
+                torch::Tensor &workspace, const torch::Tensor &starts,
+                const torch::Tensor &counts, int thread_k = -1,
+                int thread_n = -1, int sms = -1, int max_par = 8) {
+  for (int i = 0; i < indices.size(0); i++) {
     int start = starts[i].item<int>();
     auto sliced_C = C.slice(0, start, start + counts[i].item<int>());
     auto my_workspace = workspace[i];
-    // torch::Tensor my_workspace = torch::empty({2048}, torch::kFloat16).to(C.device());
-    mul_2_4(
-      A.slice(0, start, start+counts[i].item<int>()),
-      B[indices[i]],
-      meta[indices[i]],
-      sliced_C,
-      s[indices[i]],
-      my_workspace,
-      thread_k, thread_n, sms, max_par
-    );
+    // torch::Tensor my_workspace = torch::empty({2048},
+    // torch::kFloat16).to(C.device());
+    mul_2_4(A.slice(0, start, start + counts[i].item<int>()), B[indices[i]],
+            meta[indices[i]], sliced_C, s[indices[i]], my_workspace, thread_k,
+            thread_n, sms, max_par);
   }
 }
 
-void mul_stream_parallel(
-    const torch::Tensor &A, const torch::Tensor &B, 
-    const torch::Tensor &meta, torch::Tensor &C, 
-    const torch::Tensor &s, const torch::Tensor &indices, 
-    torch::Tensor &workspace, 
-    const torch::Tensor &starts, const torch::Tensor &counts, 
-    int thread_k = -1, int thread_n = -1, 
-    int sms = -1, int max_par = 8
-  ) {
-  int num_elements = indices.size(0);
-  std::vector<int> indices_ptr(num_elements);
-  std::iota(indices_ptr.begin(), indices_ptr.end(), 0);
-  std::for_each(
-    std::execution::par_unseq,
-    indices_ptr.begin(), indices_ptr.end(),
-    [&](int i) {
-      int start = starts[i].item<int>();
-      auto sliced_C = C.slice(0, start, start + counts[i].item<int>());
-      auto my_workspace = workspace[i];
-      mul_2_4(
-        A.slice(0, start, start+counts[i].item<int>()),
-        B[indices[i]],
-        meta[indices[i]],
-        sliced_C,
-        s[indices[i]],
-        my_workspace,
-        thread_k, thread_n, sms, max_par
-      );
-    }
-  );
+void mul_stream_parallel(const torch::Tensor &A, const torch::Tensor &B,
+                         const torch::Tensor &meta, torch::Tensor &C,
+                         const torch::Tensor &s, const torch::Tensor &indices,
+                         torch::Tensor &workspace, const torch::Tensor &starts,
+                         const torch::Tensor &counts, int thread_k = -1,
+                         int thread_n = -1, int sms = -1, int max_par = 8) {
+  #pragma omp parallel for
+  for (int i = 0; i < indices.size(0); i++) {
+    std::cout << "Thread ID: " << omp_get_thread_num() << std::endl;
+    int start = starts[i].item<int>();
+    auto sliced_C = C.slice(0, start, start + counts[i].item<int>());
+    auto my_workspace = workspace[i];
+    // torch::Tensor my_workspace = torch::empty({2048},
+    // torch::kFloat16).to(C.device());
+    mul_2_4(A.slice(0, start, start + counts[i].item<int>()), B[indices[i]],
+            meta[indices[i]], sliced_C, s[indices[i]], my_workspace, thread_k,
+            thread_n, sms, max_par);
+  }
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("mul", &mul, "Marlin FP16xINT4 matmul.");
   m.def("mul_2_4", &mul_2_4, "Marlin FP16xINT4 matmul with 2:4 sparsity.");
   m.def("mul_stream", &mul_stream, "Marlin FP16xINT4 matmul with stream.");
-  m.def("mul_stream_parallel", &mul_stream_parallel, "Marlin FP16xINT4 matmul with stream.");
+  m.def("mul_stream_parallel", &mul_stream_parallel,
+        "Marlin FP16xINT4 matmul with stream.");
 }
-} // namespace marlin
+}  // namespace marlin
