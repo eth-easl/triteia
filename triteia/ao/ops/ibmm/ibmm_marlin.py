@@ -23,9 +23,15 @@ def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None
 
 def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None):
     workspace = torch.zeros(16384 // 128 * 16, device=x.device)
-    mask = indices != -1
-    valid_indices = indices[mask]
-    unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)
+    unique_indices, counts = torch.unique(indices, sorted=False, return_counts=True)
+    # create start vector, where the first element is the first index of non -1 in indices
+    first_nonnegative = torch.where(indices != -1)[0][0]
+    print(f"unique_indices: {unique_indices}, counts: {counts}")
+    print(f"first_nonnegative: {first_nonnegative}")
+    if first_nonnegative > 0:
+        counts = counts[1:]
+    start = torch.cat((torch.tensor([first_nonnegative]).cuda(), (torch.cumsum(counts, dim=0)+ first_nonnegative)[:-1]))
+    print(f"start: {start}, counts: {counts}")
     marlin.mul_stream(
         x,
         qweight,
@@ -34,6 +40,7 @@ def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_i
         scale,
         unique_indices,
         workspace,
+        start,
         counts,
     )
     return y

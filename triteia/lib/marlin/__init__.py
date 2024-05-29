@@ -72,9 +72,16 @@ def mul(A, B, C, s, workspace, thread_k=-1, thread_n=-1, sms=-1, max_par=16, str
     marlin_cuda.mul(A, B, C, s, workspace, thread_k, thread_n, sms, max_par)
 
 
-def mul_stream(A, B, meta, C, s, indices, workspace,counts, thread_k=-1, thread_n=-1, sms=-1, max_par=16):
-    marlin_cuda.mul_stream(A, B, meta, C, s, indices,
-                           workspace,counts, thread_k, thread_n, sms, max_par)
+def mul_stream(
+        A, B, meta, C, s, indices, workspace,
+        starts, counts, 
+        thread_k=-1, thread_n=-1, sms=-1, max_par=16
+    ):
+    marlin_cuda.mul_stream(
+        A, B, meta, C, s, indices,
+        workspace,starts,counts,
+        thread_k, thread_n, sms, max_par
+    )
 
 # Precompute permutations for Marlin weight and scale shuffling
 

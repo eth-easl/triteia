@@ -31,8 +31,7 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
                     cudaStream_t stream = 0, int thread_k = -1,
                     int thread_m = -1, int sms = -1, int max_par = 16);
 
-int marlin_cuda(const void *A, const void *B, void *C, void *s, int prob_m,int prob_n, int prob_k, void *workspace, int groupsize = -1,
-                int dev = 0, cudaStream_t stream = 0, int thread_k = -1,
+int marlin_cuda(const void *A, const void *B, void *C, void *s, int prob_m,int prob_n, int prob_k, void *workspace, int groupsize = -1,int dev = 0, cudaStream_t stream = 0, int thread_k = -1,
                 int thread_n = -1, int sms = -1, int max_par = 16);
 
 const int ERR_PROB_SHAPE = 1;
@@ -98,13 +97,14 @@ void mul_stream(
     const torch::Tensor &A, const torch::Tensor &B, 
     const torch::Tensor &meta, torch::Tensor &C, 
     const torch::Tensor &s, const torch::Tensor &indices, 
-    torch::Tensor &workspace, const torch::Tensor &counts, 
+    torch::Tensor &workspace, const torch::Tensor &starts, const torch::Tensor &counts, 
     int thread_k = -1, int thread_n = -1, 
     int sms = -1, int max_par = 8
   ) {
   // std::cout << indices << std::endl;
-  int start = 0;
+  
   for (int i=0; i<indices.size(0); i++) {
+    int start = starts[i].item<int>();
     printf("# of indices %d: %d\n", indices[i].item<int>(), counts[i].item<int>());
     auto sliced_C = C.slice(0, start, start + counts[i].item<int>());
     mul_2_4(
@@ -116,7 +116,6 @@ void mul_stream(
       workspace,
       thread_k, thread_n, sms, max_par
     );
-    start += counts[i].item<int>();
   }
 }
 

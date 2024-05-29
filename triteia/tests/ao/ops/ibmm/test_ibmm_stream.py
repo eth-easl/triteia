@@ -33,11 +33,9 @@ if __name__=="__main__":
     distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
-    
     print(f"indices: {indices}")
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1
-
     workspace = torch.zeros(m // 128 * 16, device=DEV, dtype=torch.int32)
     x = torch.randn((num_requests, k), dtype=torch.float16, device=DEV)
     ref_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
@@ -50,3 +48,4 @@ if __name__=="__main__":
         4, indices, metas, stream_output, x, qs, scales
     )
     print(stream_output)
+    assert torch.allclose(ref_output, stream_output)
