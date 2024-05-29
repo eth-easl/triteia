@@ -20,6 +20,8 @@ def benchmark(K, M, num_reqs, num_models, dist):
         4,indices, metas, ref_output, x, qs, scales
     )
     ref_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
+    
+    # actual measure
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     start.record()
@@ -29,10 +31,14 @@ def benchmark(K, M, num_reqs, num_models, dist):
     end.record()
     torch.cuda.synchronize()
     for_loop_time = start.elapsed_time(end)
+    
+    # warmup here
     output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
     ibmm_sparse_marlin_stream(
         4,indices, metas, output, x, qs, scales
     )
+    
+    # actual measure
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
@@ -43,6 +49,20 @@ def benchmark(K, M, num_reqs, num_models, dist):
     end.record()
     torch.cuda.synchronize()
     stream_time = start.elapsed_time(end)
+    
+    # warmup here
+    fp16_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
+    ibmm_fp16(indices, None, fp16_output, x, fp16, None)
+    
+    # actual measure
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    fp16_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
+    start.record()
+    ibmm_fp16(indices, None, fp16_output, x, fp16, None)
+    end.record()
+    torch.cuda.synchronize()
+    fp16_time = start.elapsed_time(end)
     result.append({
         "M": M,
         "K": K,
@@ -50,7 +70,8 @@ def benchmark(K, M, num_reqs, num_models, dist):
         "num_models": num_models,
         "dist": dist,
         "for_loop_time": for_loop_time,
-        "stream_time": stream_time
+        "stream_time": stream_time,
+        "fp16_time": fp16_time,
     })
     if not torch.allclose(ref_output, output):
         raise RuntimeError("Error")
