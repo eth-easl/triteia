@@ -11,7 +11,9 @@ def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None
             workspace = torch.zeros(y.shape[1] // 128 * 16, device=x.device)
             idx_mask = indices == id
             inp = x[idx_mask]
-            output = torch.zeros((inp.shape[0], y.shape[1]), dtype=torch.float16, device=x.device)
+            output = torch.zeros((
+                inp.shape[0], y.shape[1]
+            ), dtype=torch.float16, device=x.device)
             marlin.mul_2_4(
                 inp,
                 qweight[id],
@@ -19,8 +21,6 @@ def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None
                 output,
                 scale[id],
                 workspace,
-                # thread_m=128,
-                # thread_k=64
             )
             y[idx_mask] = output
     return y
@@ -49,5 +49,4 @@ def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_i
         counts,
         parallel=parallel
     )
-    y += output
-    return y
+    return output

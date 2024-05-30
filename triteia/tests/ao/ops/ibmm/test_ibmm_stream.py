@@ -8,9 +8,9 @@ from triteia.ao.utils.distribution import generate_model_distribution
 DEV="cuda:0"
 
 if __name__=="__main__":
-    k = 4096
-    m = 5504
-    num_requests = 5
+    k = 5504 # in_feature
+    m = 4096 # outfeature
+    num_requests = 64
     num_models = 1
     distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
@@ -20,15 +20,18 @@ if __name__=="__main__":
     groupsize = -1
     workspace = torch.zeros(m // 128 * 16, device=DEV, dtype=torch.int32)
     x = torch.randn((num_requests, k), dtype=torch.float16, device=DEV)
+    
     ref_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
     ibmm_sparse_marlin(
         4,indices, metas, ref_output, x, qs, scales
     )
     stream_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
-    ibmm_sparse_marlin_stream(
-        4, indices, metas, stream_output, x, qs, scales, parallel=False
+    stream_output = ibmm_sparse_marlin_stream(
+        4, indices, metas, stream_output, x, qs, scales, parallel=True
     )
     for i in range(num_requests):
         if not torch.allclose(ref_output[i], stream_output[i]):
             print(f"Error starts at row {i}")
+            print(f"ref_output: {ref_output}")
+            print(f"stream_output: {stream_output}")
             break

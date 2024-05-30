@@ -87,19 +87,20 @@ void mul_2_4(const torch::Tensor &A, const torch::Tensor &B,
     AT_ERROR("workspace must be of size at least ", prob_m / 128 * max_par,
              ".");
   int dev = A.get_device();
-  // auto stream = at::cuda::getStreamFromPool(dev);
-  auto stream = at::cuda::getCurrentCUDAStream(dev);
-  int err = marlin_cuda_2_4(
-      A.data_ptr(), B.data_ptr(), meta.data_ptr(), C.data_ptr(), s.data_ptr(),
-      prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize, dev,
-      stream, thread_k, thread_m, sms, max_par);
-  if (err == ERR_PROB_SHAPE) {
-    AT_ERROR("Problem (m=", prob_m, ", n=", prob_n, ", k=", prob_k, ")",
-             " not compatible with thread_k=", thread_k,
-             ", thread_m=", thread_m, ".");
-  } else if (err == ERR_KERN_SHAPE) {
-    AT_ERROR("No kernel implementation for thread_k=", thread_k,
-             ", thread_m=", thread_m, ", groupsize=", groupsize, ".");
+  at::cuda::CUDAStream stream = at::cuda::getStreamFromPool(0, dev);
+  {
+    int err = marlin_cuda_2_4(A.data_ptr(), B.data_ptr(), meta.data_ptr(),
+                              C.data_ptr(), s.data_ptr(), prob_m, prob_n,
+                              prob_k, workspace.data_ptr(), groupsize, dev,
+                              stream, thread_k, thread_m, sms, max_par);
+    if (err == ERR_PROB_SHAPE) {
+      AT_ERROR("Problem (m=", prob_m, ", n=", prob_n, ", k=", prob_k, ")",
+               " not compatible with thread_k=", thread_k,
+               ", thread_m=", thread_m, ".");
+    } else if (err == ERR_KERN_SHAPE) {
+      AT_ERROR("No kernel implementation for thread_k=", thread_k,
+               ", thread_m=", thread_m, ", groupsize=", groupsize, ".");
+    }
   }
 }
 
@@ -113,9 +114,9 @@ void mul_stream(const torch::Tensor &A, const torch::Tensor &B,
     int start = starts[i].item<int>();
     auto sliced_C = C.slice(0, start, start + counts[i].item<int>());
     auto my_workspace = workspace[i];
-    // torch::Tensor my_workspace = torch::empty({2048},
-    // torch::kFloat16).to(C.device());
-    mul_2_4(A.slice(0, start, start + counts[i].item<int>()), B[indices[i]],meta[indices[i]], sliced_C, s[indices[i]], my_workspace, thread_k, counts[i].item<int>(), sms, max_par);
+    mul_2_4(A.slice(0, start, start + counts[i].item<int>()), B[indices[i]],
+            meta[indices[i]], sliced_C, s[indices[i]], my_workspace, thread_k,
+            thread_n, sms, max_par);
   }
 }
 
@@ -125,16 +126,21 @@ void mul_stream_parallel(const torch::Tensor &A, const torch::Tensor &B,
                          torch::Tensor &workspace, const torch::Tensor &starts,
                          const torch::Tensor &counts, int thread_k = -1,
                          int thread_n = -1, int sms = -1, int max_par = 8) {
-  #pragma omp parallel for
-  for (int i = 0; i < indices.size(0); i++) {
-    std::cout << "Thread ID: " << omp_get_thread_num() << std::endl;
-    int start = starts[i].item<int>();
-    auto sliced_C = C.slice(0, start, start + counts[i].item<int>());
-    auto my_workspace = workspace[i];
-    // torch::Tensor my_workspace = torch::empty({2048},
-    // torch::kFloat16).to(C.device());
-    mul_2_4(A.slice(0, start, start + counts[i].item<int>()), B[indices[i]],meta[indices[i]], sliced_C, s[indices[i]], my_workspace, thread_k,counts[i].item<int>(), sms, max_par);
+  std::vector<std::thread> mul_threads(indices.size(0));
+  for (int i = 0; i < indices.size(0); ++i) {
+    mul_threads[i] =
+        std::thread([i, &A, &B, &meta, &C, &s, &indices, &workspace, &starts,
+                     &counts, thread_k, thread_n, sms, max_par]() {
+          int  start = starts[i].item<int>();
+          auto sliced_C = C.slice(0, start, start + counts[i].item<int>());
+          auto my_workspace = workspace[i];
+          mul_2_4(A.slice(0, start, start + counts[i].item<int>()),
+                  B[indices[i]], meta[indices[i]], sliced_C, s[indices[i]],
+                  my_workspace, thread_k, thread_n, sms, max_par);
+        });
   }
+  std::for_each(mul_threads.begin(), mul_threads.end(),
+                std::mem_fn(&std::thread::join));
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {

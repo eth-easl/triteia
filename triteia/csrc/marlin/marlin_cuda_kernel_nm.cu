@@ -766,9 +766,12 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
       // better compute utilization
       thread_k = 128;
       thread_m = 128;
-    } else {
+    } else if (prob_n<=256) {
       thread_k = 64;
       thread_m = 256;
+    } else {
+      thread_k = 32;
+      thread_m = 512;
     }
   }
 
@@ -820,6 +823,15 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
     CALL_IF_2_4(16, 3,  2, 4)
     CALL_IF_2_4(16, 4,  2, -1)
     CALL_IF_2_4(16, 4,  2, 4)
+    
+    CALL_IF_2_4(32, 1, 1, -1)  // e.g., 16x256x64
+    CALL_IF_2_4(32, 1, 1, 4)   // e.g., 16x256x64,  64
+    CALL_IF_2_4(32, 2, 1, -1)  // e.g.. 32x256x64
+    CALL_IF_2_4(32, 2, 1, 4)
+    CALL_IF_2_4(32, 3, 1, -1)
+    CALL_IF_2_4(32, 3, 1, 4)
+    CALL_IF_2_4(32, 4, 1, -1)
+    CALL_IF_2_4(32, 4, 1, 4)
     else ret = ERR_KERN_SHAPE;
 
     A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
