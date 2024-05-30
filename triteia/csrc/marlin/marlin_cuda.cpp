@@ -87,7 +87,8 @@ void mul_2_4(const torch::Tensor &A, const torch::Tensor &B,
     AT_ERROR("workspace must be of size at least ", prob_m / 128 * max_par,
              ".");
   int dev = A.get_device();
-  auto stream = at::cuda::getStreamFromPool(dev);
+  // auto stream = at::cuda::getStreamFromPool(dev);
+  auto stream = at::cuda::getCurrentCUDAStream(dev);
   int err = marlin_cuda_2_4(
       A.data_ptr(), B.data_ptr(), meta.data_ptr(), C.data_ptr(), s.data_ptr(),
       prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize, dev,
@@ -114,9 +115,7 @@ void mul_stream(const torch::Tensor &A, const torch::Tensor &B,
     auto my_workspace = workspace[i];
     // torch::Tensor my_workspace = torch::empty({2048},
     // torch::kFloat16).to(C.device());
-    mul_2_4(A.slice(0, start, start + counts[i].item<int>()), B[indices[i]],
-            meta[indices[i]], sliced_C, s[indices[i]], my_workspace, thread_k,
-            thread_n, sms, max_par);
+    mul_2_4(A.slice(0, start, start + counts[i].item<int>()), B[indices[i]],meta[indices[i]], sliced_C, s[indices[i]], my_workspace, thread_k, counts[i].item<int>(), sms, max_par);
   }
 }
 
@@ -134,9 +133,7 @@ void mul_stream_parallel(const torch::Tensor &A, const torch::Tensor &B,
     auto my_workspace = workspace[i];
     // torch::Tensor my_workspace = torch::empty({2048},
     // torch::kFloat16).to(C.device());
-    mul_2_4(A.slice(0, start, start + counts[i].item<int>()), B[indices[i]],
-            meta[indices[i]], sliced_C, s[indices[i]], my_workspace, thread_k,
-            thread_n, sms, max_par);
+    mul_2_4(A.slice(0, start, start + counts[i].item<int>()), B[indices[i]],meta[indices[i]], sliced_C, s[indices[i]], my_workspace, thread_k,counts[i].item<int>(), sms, max_par);
   }
 }
 

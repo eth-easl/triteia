@@ -2,6 +2,9 @@ import torch
 import triteia.lib.marlin as marlin
 
 def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None):
+    # if all indices are -1, return y
+    if torch.all(indices == -1):
+        return y
     unique_indices, counts = torch.unique(indices, sorted=False, return_counts=True)
     for id, count in zip(unique_indices, counts):
         if id != -1:
@@ -16,9 +19,12 @@ def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None
                 output,
                 scale[id],
                 workspace,
+                # thread_m=128,
+                # thread_k=64
             )
             y[idx_mask] = output
     return y
+
 def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None, parallel=False):
     # if all indices are -1, return y
     if torch.all(indices == -1):

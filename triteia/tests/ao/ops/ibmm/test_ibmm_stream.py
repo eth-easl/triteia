@@ -8,14 +8,13 @@ from triteia.ao.utils.distribution import generate_model_distribution
 DEV="cuda:0"
 
 if __name__=="__main__":
-    k = 2048
-    m = 2048
-    num_requests = 256
-    num_models = 128
+    k = 4096
+    m = 5504
+    num_requests = 5
+    num_models = 1
     distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
-    
     print(f"indices: {indices}")
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1
@@ -27,7 +26,7 @@ if __name__=="__main__":
     )
     stream_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
     ibmm_sparse_marlin_stream(
-        4, indices, metas, stream_output, x, qs, scales, parallel=True
+        4, indices, metas, stream_output, x, qs, scales, parallel=False
     )
     for i in range(num_requests):
         if not torch.allclose(ref_output[i], stream_output[i]):
