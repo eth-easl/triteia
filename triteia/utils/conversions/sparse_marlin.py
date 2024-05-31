@@ -2,7 +2,7 @@ import torch
 from triteia.lib.marlin import Layer_2_4 as MarlinLayer
 
 @torch.no_grad()
-def TorchWeightToSparseMarlin(weight, scale, tp_size=1, chunk_by="column"):
+def torch_weight_to_sparse_marlin(weight, scale, tp_size=1, chunk_by="column"):
     """
     Args:
         weight: torch.Tensor of shape (in_features, out_features)
