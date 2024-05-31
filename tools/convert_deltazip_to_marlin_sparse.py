@@ -98,10 +98,12 @@ def convert_model(args, verbose=True):
             new_tensors[module + f".{i}.qweight"] = layer.B
             new_tensors[module + f".{i}.scales"] = layer.s
             new_tensors[module + f".{i}.meta"] = layer.meta
+            
         remaining_keys.remove(module + ".qweight")
         remaining_keys.remove(module + ".qzeros")
         remaining_keys.remove(module + ".scales")
         remaining_keys.remove(module + ".g_idx")
+    
     # now processing remaining keys
     for module in remaining_keys:
         if any([key in module for key in uncompressed_row_chunking_modules]):
@@ -119,7 +121,9 @@ if __name__ == "__main__":
     parser.add_argument("--tp-size", type=int)
     parser.add_argument("--save-path", type=str)
     parser.add_argument("--lossless", action="store_true")
+    parser.add_argument("--pack", action="store_true")
     args = parser.parse_args()
+    
     print("Converting model...")
     new_tensors = convert_model(args, verbose=True)
     save_tensors(new_tensors, args.save_path)
