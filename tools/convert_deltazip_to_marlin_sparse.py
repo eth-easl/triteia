@@ -16,12 +16,17 @@ column_chunking_modules = [
     "mlp.gate_proj",
     "mlp.up_proj",
 ]
-
+pack_modules = {
+    "self_attn.q_proj": "self_attn.qkv_proj:0",
+    "self_attn.k_proj": "self_attn.qkv_proj:1",
+    "self_attn.v_proj": "self_attn.qkv_proj:2",
+    "mlp.gate_proj": "mlp.gate_up_proj:0",
+    "mlp.up_proj": "mlp.gate_up_proj:1",
+}
 row_chunking_modules = [
     "self_attn.o_proj",
     "mlp.down_proj",
 ]
-
 uncompressed_row_chunking_modules = [
     "embed_tokens",
     "lm_head",
@@ -32,6 +37,7 @@ def convert_model(args, verbose=True):
     DEV = "cuda:0"
     tensors = {}
     new_tensors = {}
+    dequantized_tensors = {}
     remaining_keys = []
     with st.safe_open(args.ckpt, framework="torch", device="cuda:0") as f:
         keys = f.keys()
@@ -66,54 +72,26 @@ def convert_model(args, verbose=True):
             tensors[module + ".scales"],
         ).to(torch.float16).t()
         scales = tensors[module + ".scales"]
-        num_rows = dequantized_weight.shape[0]
-        num_columns = dequantized_weight.shape[1]
-        for i in range(args.tp_size):
-            if any([key in module for key in column_chunking_modules]):
-                pbar.set_description(f"{module}, tp={i}, column chunking")
-                tp_weight = dequantized_weight[:, i * num_columns // args.tp_size: (i + 1) * num_columns // args.tp_size]
-                tp_scales = scales[:, i * num_columns // args.tp_size: (i + 1) * num_columns // args.tp_size]
-            elif any([key in module for key in row_chunking_modules]):
-                pbar.set_description(f"{module}, tp={i}, row chunking")
-                tp_weight = dequantized_weight[i * num_rows // args.tp_size: (i + 1) * num_rows // args.tp_size, :]
-                tp_scales = scales
-            else:
-                raise ValueError(f"Module {module} unknown...")
-            k, m = tp_weight.shape[0], tp_weight.shape[1]
-            k_sp = k // 2
-            layer = MarlinLayer(
-                infeatures=tp_weight.shape[0],
-                outfeatures=tp_weight.shape[1],
-                groupsize=-1
-            )
-            layer.groupsize = k
-            layer.B = torch.empty((k_sp // 16, m * 16 // 8), dtype=torch.int, device=DEV)
-            layer.meta = torch.empty((m, k // 16), dtype=torch.int16, device=DEV)
-            layer.s = torch.empty((k_sp // (k // 2), m), dtype=torch.half, device=DEV)
-            layer.pack(
-                tp_weight,
-                scales=tp_scales,
-                trans=True,
-            )
-            new_tensors[module + f".{i}.qweight"] = layer.B
-            new_tensors[module + f".{i}.scales"] = layer.s
-            new_tensors[module + f".{i}.meta"] = layer.meta
-            
+        dequantized_tensors[module] = (dequantized_weight, scales)
         remaining_keys.remove(module + ".qweight")
         remaining_keys.remove(module + ".qzeros")
         remaining_keys.remove(module + ".scales")
         remaining_keys.remove(module + ".g_idx")
     
-    # now processing remaining keys
-    for module in remaining_keys:
-        if any([key in module for key in uncompressed_row_chunking_modules]):
-            weight = tensors[module]
-            module_name = module.removesuffix(".weight")
-            num_rows = weight.shape[0]
-            for i in range(args.tp_size):
-                tp_weight = weight[i * num_rows // args.tp_size: (i + 1) * num_rows // args.tp_size, :]
-                new_tensors[module_name + f".{i}.weight"] = tp_weight
-    return new_tensors
+    # now start to pack weights together
+    for module in quantized_modules:
+        print(f"Processing {module}...")
+    
+    # # now processing remaining keys
+    # for module in remaining_keys:
+    #     if any([key in module for key in uncompressed_row_chunking_modules]):
+    #         weight = tensors[module]
+    #         module_name = module.removesuffix(".weight")
+    #         num_rows = weight.shape[0]
+    #         for i in range(args.tp_size):
+    #             tp_weight = weight[i * num_rows // args.tp_size: (i + 1) * num_rows // args.tp_size, :]
+    #             new_tensors[module_name + f".{i}.weight"] = tp_weight
+    # return new_tensors
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -126,4 +104,4 @@ if __name__ == "__main__":
     
     print("Converting model...")
     new_tensors = convert_model(args, verbose=True)
-    save_tensors(new_tensors, args.save_path)
+    # save_tensors(new_tensors, args.save_path)
