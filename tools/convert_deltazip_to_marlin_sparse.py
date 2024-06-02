@@ -30,9 +30,11 @@ uncompressed_row_chunking_modules = [
     "embed_tokens",
     "lm_head",
 ]
+
 @torch.no_grad()
 def convert_model(args, verbose=True):
     DEV = "cuda:0"
+    new_tensors = {}
     tensors = {}
     packed_tensors = {}
     dequantized_tensors = {}
@@ -122,9 +124,9 @@ def convert_model(args, verbose=True):
             tp_size=args.tp_size,
             chunk_by="column"
         )
-        new_tensors[module_name + f".{i}.qweight"] = qweight
-        new_tensors[module_name + f".{i}.scales"] = scales
-        new_tensors[module_name + f".{i}.meta"] = meta
+        new_tensors[key + f".qweight"] = qweight
+        new_tensors[key + f".scales"] = scales
+        new_tensors[key + f".meta"] = meta
     
     # # now processing remaining keys
     for module in remaining_keys:
@@ -135,7 +137,7 @@ def convert_model(args, verbose=True):
             for i in range(args.tp_size):
                 tp_weight = weight[i * num_rows // args.tp_size: (i + 1) * num_rows // args.tp_size, :]
                 new_tensors[module_name + f".{i}.weight"] = tp_weight
-    # return new_tensors
+    return new_tensors
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -148,4 +150,4 @@ if __name__ == "__main__":
     
     print("Converting model...")
     new_tensors = convert_model(args, verbose=True)
-    # save_tensors(new_tensors, args.save_path)
+    save_tensors(new_tensors, args.save_path)
