@@ -7,38 +7,19 @@ from triteia.utils.io import save_tensors
 from triteia.ao.utils.quant_utils import dequantize_weight
 from triteia.utils.compressor import LosslessCompressor
 from triteia.utils.conversions import torch_weight_to_sparse_marlin
-# NOTE: This is only for llama-series models
-column_chunking_modules = [
-    "self_attn.q_proj",
-    "self_attn.k_proj",
-    "self_attn.v_proj",
-    "mlp.gate_proj",
-    "mlp.up_proj",
-]
-pack_modules = {
-    "self_attn.q_proj": "self_attn.qkv_proj:0",
-    "self_attn.k_proj": "self_attn.qkv_proj:1",
-    "self_attn.v_proj": "self_attn.qkv_proj:2",
-    "mlp.gate_proj": "mlp.gate_up_proj:0",
-    "mlp.up_proj": "mlp.gate_up_proj:1",
-}
-row_chunking_modules = [
-    "self_attn.o_proj",
-    "mlp.down_proj",
-]
-uncompressed_row_chunking_modules = [
-    "embed_tokens",
-    "lm_head",
-]
+from triteia.configs.models.llama import column_chunking_modules, row_chunking_modules, uncompressed_row_chunking_modules, pack_modules
 
 @torch.no_grad()
 def convert_model(args, verbose=True):
     DEV = "cuda:0"
+    
     new_tensors = {}
     tensors = {}
     packed_tensors = {}
     dequantized_tensors = {}
+    unpacked_keys = []
     remaining_keys = []
+    
     with st.safe_open(args.ckpt, framework="torch", device="cuda:0") as f:
         keys = f.keys()
         remaining_keys = list(f.keys())
@@ -90,6 +71,17 @@ def convert_model(args, verbose=True):
             if target_module not in pack_plan:
                 pack_plan[target_module] = []
             pack_plan[target_module].append((module, target_idx))
+        elif any([key in module for key in row_chunking_modules]):
+            qweights, scales, metas = torch_weight_to_sparse_marlin(
+                dequantized_tensors[module][0],
+                dequantized_tensors[module][1],
+                tp_size=args.tp_size,
+                chunk_by="row",
+            )
+            for idx, (qweight, scales, meta) in enumerate(zip(qweights, scales, metas)):
+                new_tensors[module + f".{idx}.qweight"] = qweight
+                new_tensors[module + f".{idx}.scales"] = scales
+                new_tensors[module + f".{idx}.meta"] = meta
     
     for key in pack_plan.keys():
         pack_plan[key] = sorted(pack_plan[key], key=lambda x: x[1])
@@ -109,13 +101,10 @@ def convert_model(args, verbose=True):
                 device=DEV
             )
         )
-    
     for key in pack_plan.keys():
-        print(f"{key}, shape: {packed_tensors[key][0].shape}, {packed_tensors[key][1].shape}")
         start = 0
         for module, idx in pack_plan[key]:
             weight, scales = dequantized_tensors[module]
-            print(f"packing {module}, shape: {weight.shape}, {scales.shape}")
             assert weight.shape[1] == scales.shape[1]
             packed_tensors[key][0][
                 :,
@@ -136,6 +125,7 @@ def convert_model(args, verbose=True):
             new_tensors[key + f".{idx}.qweight"] = qweight
             new_tensors[key + f".{idx}.scales"] = scales
             new_tensors[key + f".{idx}.meta"] = meta
+    
     # # now processing remaining keys
     for module in remaining_keys:
         if any([key in module for key in uncompressed_row_chunking_modules]):
@@ -145,6 +135,7 @@ def convert_model(args, verbose=True):
             for i in range(args.tp_size):
                 tp_weight = weight[i * num_rows // args.tp_size: (i + 1) * num_rows // args.tp_size, :]
                 new_tensors[module_name + f".{i}.weight"] = tp_weight
+    
     return new_tensors
     
 if __name__ == "__main__":
