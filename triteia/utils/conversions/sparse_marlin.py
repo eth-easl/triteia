@@ -13,8 +13,14 @@ def torch_weight_to_sparse_marlin(weight, scale, tp_size=1, chunk_by="column"):
     assert chunk_by in ["column", "row"], "chunk_by must be either 'column' or 'row'"
     assert weight.dim() == 2, "weight must be a 2D tensor"
     assert weight.size(0) % tp_size == 0, "out_features must be divisible by tp_size"
+    assert weight.size(1) == scale.size(1), "out_features of weight and scale must match"
+    
     if not weight.is_contiguous():
         weight = weight.contiguous()
+    if not scale.is_contiguous():
+        scale = scale.contiguous()
+    
+    qweights, scales,metas = [], [], []
     for i in range(tp_size):
         if chunk_by == "column":
             tp_weight = weight[
@@ -25,7 +31,7 @@ def torch_weight_to_sparse_marlin(weight, scale, tp_size=1, chunk_by="column"):
                 :, 
                 i * weight.size(1) // tp_size: (i + 1) * weight.size(1) // tp_size
             ]
-        else:
+        elif chunk_by == "row":
             tp_weight = weight[
                 i * weight.size(0) // tp_size: (i + 1) * weight.size(0) // tp_size, 
                 :
@@ -43,4 +49,7 @@ def torch_weight_to_sparse_marlin(weight, scale, tp_size=1, chunk_by="column"):
         layer.meta = torch.empty((m, k // 16), dtype=torch.int16)
         layer.s = torch.empty((k_sp // (k // 2), m), dtype=torch.half)
         layer.pack(tp_weight, scales=tp_scales, trans=True)
-        return layer.B, layer.s, layer.meta
+        qweights.append(layer.B)
+        scales.append(layer.s)
+        metas.append(layer.meta)
+    return qweights, scales, metas

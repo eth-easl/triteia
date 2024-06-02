@@ -7,7 +7,7 @@ import triteia.ao.utils.autotune as autotune
 from fractions import Fraction
 from torch.cuda.amp import custom_bwd, custom_fwd
 from fractions import Fraction
-
+from triteia.lib.marlin import mul_2_4
 
 @autotune.autotune(
     key=["M", "N", "K"],
@@ -358,3 +358,21 @@ class QuantLinearInferenceOnlyFunction(torch.autograd.Function):
     def forward(ctx, input, qweight, scales, qzero, g_idx, bits, maxq):
         output = quant_matmul_248(input, qweight, scales, qzero, g_idx, bits, maxq)
         return output
+
+def quant_4_marlin_2_4(x, qweight, meta, scales):
+    output = torch.empty(
+        x.shape[0],
+        qweight.shape[1] // 2,
+        device=x.device,
+        dtype=x.dtype,
+    )
+    workspace = torch.zeros(output.shape[1]//128*16, device="cuda:0")
+    mul_2_4(
+        x,
+        qweight,
+        meta,
+        output,
+        scales,
+        workspace
+    )
+    return output

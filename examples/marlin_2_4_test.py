@@ -7,7 +7,7 @@ from triteia.ao.utils.quant_utils import dequantize_weight
 from triteia.ao.ops.matmul.native_mm_lowprec import native_matmul_lowprec_248
 
 prefix = "model.layers.0.mlp.down_proj"
-gptq_tensors_file = ".local/tinyllama/model.safetensors"
+gptq_tensors_file = ".local/tinyllama/gptq.safetensors"
 gptq_tensors = {}
 
 DEV = "cuda:0"
