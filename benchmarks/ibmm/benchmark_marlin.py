@@ -53,7 +53,7 @@ def benchmark(K, M, num_reqs, num_models, dist):
     torch.cuda.synchronize()
     torch.cuda.nvtx.range_pop()
     for_loop_time = start.elapsed_time(end)
-    
+
     # sparse Marlin
     # warmup here
     output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
@@ -73,8 +73,6 @@ def benchmark(K, M, num_reqs, num_models, dist):
     torch.cuda.synchronize()
     torch.cuda.nvtx.range_pop()
     stream_time = start.elapsed_time(end)
-    
-    
     
     # sparse_marlin parallel
     # warmup here
@@ -110,15 +108,9 @@ def benchmark(K, M, num_reqs, num_models, dist):
     ## verify resutlts...
     if not torch.allclose(ref_output, parallel_stream_output):
         print("error: ref_output != parallel_stream_output")
-        # print(f"ref: {ref_output}")
-        # print(f"output: {output}")
-        # raise RuntimeError(f"Error at M={M}, K={K}, num_reqs={num_reqs}, num_models={num_models}, dist={dist}")
         pass
     if not torch.allclose(ref_output, output):
         print("error: ref_output != output")
-        # print(f"ref: {ref_output}")
-        # print(f"output: {output}")
-        # raise RuntimeError(f"Error at M={M}, K={K}, num_reqs={num_reqs}, num_models={num_models}, dist={dist}")
         pass
     return result
     

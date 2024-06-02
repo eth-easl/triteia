@@ -92,13 +92,13 @@ def convert_model(args, verbose=True):
                 first_module_weight.shape[0],
                 sum([dequantized_tensors[module[0]][0].shape[1] for module in pack_plan[key]]),
                 dtype=torch.float16,
-                device=DEV
+                device="cpu"
             ),
             torch.zeros(
                 first_module_scales.shape[0],
                 sum([dequantized_tensors[module[0]][1].shape[1] for module in pack_plan[key]]),
                 dtype=torch.float16,
-                device=DEV
+                device="cpu"
             )
         )
     for key in pack_plan.keys():
@@ -116,8 +116,8 @@ def convert_model(args, verbose=True):
             ].copy_(scales)
             start += weight.shape[1]
         qweights, scales, metas = torch_weight_to_sparse_marlin(
-            packed_tensors[key][0],
-            packed_tensors[key][1],
+            packed_tensors[key][0].to(DEV),
+            packed_tensors[key][1].to(DEV),
             tp_size=args.tp_size,
             chunk_by="column",
         )
