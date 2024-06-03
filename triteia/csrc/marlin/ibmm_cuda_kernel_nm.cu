@@ -1,20 +1,3 @@
-/*
- * Copyright (C) 2024 Roberto Lopez Castro (roberto.lopez.castro@udc.es). All
- * Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *       http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 #ifndef IBMM_CUDA_KERNEL_CUH
 #define IBMM_CUDA_KERNEL_CUH
 
@@ -741,7 +724,7 @@ const int SHARED_MEM =
            thread_n_blocks == THREAD_N_BLOCKS &&                               \
            thread_k_blocks == THREAD_K_BLOCKS &&                               \
            group_blocks == GROUP_BLOCKS) {                                     \
-    cudaFuncSetAttribute(Marlin_2_4<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS, \
+    cudaFuncSetAttribute(IBMM_2_4<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS,   \
                                     THREAD_K_BLOCKS, STAGES, GROUP_BLOCKS>,    \
                          cudaFuncAttributeMaxDynamicSharedMemorySize,          \
                          SHARED_MEM);                                          \
@@ -754,12 +737,13 @@ const int ERR_PROB_SHAPE = 1;
 const int ERR_KERN_SHAPE = 2;
 
 int ibmm_cuda_2_4(
-  const void *A, const void *B, const void *meta, void *C,void *s,
+  const void *A, const void *B, const void *meta, void *C, void *s, void *indices,
   int prob_m, int prob_n, int prob_k, void *workspace, int groupsize=-1,
   int dev=0, cudaStream_t stream = 0, int thread_k = -1,
   int thread_m = -1, int sms = -1, int max_par = 16
 ) {
-int tot_n = prob_n;
+
+  int tot_n = prob_n;
   int tot_n_blocks = ceildiv(tot_n, 16);
   int pad = 16 * tot_n_blocks - tot_n;
 
@@ -784,6 +768,7 @@ int tot_n = prob_n;
   int thread_m_blocks = thread_m / 16;
   int group_blocks = (groupsize == -1) ? -1 : groupsize / 16;
   int blocks = sms;
+  
   if (prob_m % thread_m != 0 || prob_k % thread_k != 0 ||
       (group_blocks != -1 && (prob_k / 2) % group_blocks != 0))
     return ERR_PROB_SHAPE;
@@ -792,7 +777,7 @@ int tot_n = prob_n;
   const int4 *A_ptr = (const int4 *)A;
   const int4 *B_ptr = (const int4 *)B;
   const int4 *meta_ptr = (const int4 *)meta;
-  int4 *C_ptr = (int4 *)C;
+  int4 *C_ptr = (int4 *) C;
   const int4 *s_ptr = (const int4 *)s;
 
   int cols = prob_m / thread_m;
@@ -845,9 +830,6 @@ int tot_n = prob_n;
 
   return ret;
 };
-
-
-
 
 #endif
 }
