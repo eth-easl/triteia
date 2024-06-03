@@ -29,10 +29,10 @@ def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None
 
 def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None, base_weight=None, parallel=False):
     # if all indices are -1, return y
-    if torch.all(indices == -1):
-        return y
     if base_weight is not None:
         y = torch.matmul(x, base_weight.t())
+    if torch.all(indices == -1):
+        return y
     unique_indices, counts = torch.unique(indices, sorted=False, return_counts=True)
     first_nonnegative = torch.where(indices != -1)[0][0]
     if first_nonnegative > 0:
