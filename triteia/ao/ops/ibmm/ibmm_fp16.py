@@ -4,6 +4,8 @@ def ibmm_fp16(
         indices, metas, y, x, qweight, 
         scale, g_idx=None, bias=None
     ):
+    if torch.all(indices == -1):
+        return y
     mask = indices != -1
     valid_indices = indices[mask]
     unique_indices, counts = torch.unique(valid_indices, sorted=False, return_counts=True)

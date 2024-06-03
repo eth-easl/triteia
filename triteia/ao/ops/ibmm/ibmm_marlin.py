@@ -1,8 +1,10 @@
 import torch
 import triteia.lib.marlin as marlin
 
-def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None):
+def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None, base_weight=None,):
     # if all indices are -1, return y
+    if base_weight is not None:
+        y = torch.matmul(x, base_weight.t())
     if torch.all(indices == -1):
         return y
     unique_indices, counts = torch.unique(indices, sorted=False, return_counts=True)
@@ -22,14 +24,15 @@ def ibmm_sparse_marlin(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None
                 scale[id],
                 workspace,
             )
-            y[idx_mask] = output
+            y[idx_mask] += output
     return y
 
-def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None, parallel=False):
+def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None, base_weight=None, parallel=False):
     # if all indices are -1, return y
     if torch.all(indices == -1):
         return y
-    output = torch.zeros(x.shape[0], y.shape[1], dtype=torch.float16, device=x.device)
+    if base_weight is not None:
+        y = torch.matmul(x, base_weight.t())
     unique_indices, counts = torch.unique(indices, sorted=False, return_counts=True)
     first_nonnegative = torch.where(indices != -1)[0][0]
     if first_nonnegative > 0:
@@ -37,6 +40,7 @@ def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_i
         counts = counts[1:]
     start = torch.cat((torch.tensor([first_nonnegative]).cuda(), (torch.cumsum(counts, dim=0)+ first_nonnegative)[:-1]))
     workspace = torch.zeros(len(unique_indices), y.shape[1] // 8, device=x.device)
+    output = torch.zeros_like(y)
     marlin.mul_stream(
         x,
         qweight,
@@ -49,4 +53,5 @@ def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_i
         counts,
         parallel=parallel
     )
-    return output
+    y += output
+    return y

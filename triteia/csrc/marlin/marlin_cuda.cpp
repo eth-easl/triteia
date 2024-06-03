@@ -40,10 +40,10 @@ int marlin_cuda(const void *A, const void *B, void *C, void *s, int prob_m,
                 int dev = 0, cudaStream_t stream = 0, int thread_k = -1,
                 int thread_n = -1, int sms = -1, int max_par = 16);
 
-int ibmm_cuda_2_4(const void *A, const void *B, void *C, void *s,void *indices, int prob_m,
-                int prob_n, int prob_k, void *workspace, int groupsize = -1,
-                int dev = 0, cudaStream_t stream = 0, int thread_k = -1,
-                int thread_n = -1, int sms = -1, int max_par = 16);
+// int ibmm_cuda_2_4(const void *A, const void *B, void *C, void *s,void *indices, int prob_m,
+//                 int prob_n, int prob_k, void *workspace, int groupsize = -1,
+//                 int dev = 0, cudaStream_t stream = 0, int thread_k = -1,
+//                 int thread_n = -1, int sms = -1, int max_par = 16);
 
 const int ERR_PROB_SHAPE = 1;
 const int ERR_KERN_SHAPE = 2;
@@ -85,14 +85,14 @@ void mul_2_4(const torch::Tensor &A, const torch::Tensor &B,
   int prob_m = C.size(1);
   int prob_k = A.size(1);
   int groupsize = (s.size(0) == 1) ? -1 : prob_k / 2 / s.size(0);
-  // printf("groupsize is:%d\n", groupsize);
   if (groupsize != -1 && groupsize * s.size(0) != (prob_k / 2))
     AT_ERROR("k=", prob_k, " not compatible with ", s.size(0), " groups.");
   if (workspace.numel() < prob_m / 128 * max_par)
     AT_ERROR("workspace must be of size at least ", prob_m / 128 * max_par,
              ".");
   int dev = A.get_device();
-  at::cuda::CUDAStream stream = at::cuda::getStreamFromPool(0, dev);
+  //at::cuda::CUDAStream stream = at::cuda::getStreamFromPool(0, dev);
+  at::cuda::CUDAStream stream = at::cuda::getDefaultCUDAStream(dev);
   {
     int err = marlin_cuda_2_4(A.data_ptr(), B.data_ptr(), meta.data_ptr(),
                               C.data_ptr(), s.data_ptr(), prob_m, prob_n,
@@ -123,6 +123,7 @@ void mul_stream(const torch::Tensor &A, const torch::Tensor &B,
             meta[indices[i]], sliced_C, s[indices[i]], my_workspace, thread_k,
             thread_n, sms, max_par);
   }
+  
 }
 
 void mul_stream_parallel(const torch::Tensor &A, const torch::Tensor &B,
@@ -148,44 +149,44 @@ void mul_stream_parallel(const torch::Tensor &A, const torch::Tensor &B,
                 std::mem_fn(&std::thread::join));
 }
 
-void ibmm(const torch::Tensor &A, const torch::Tensor &B, torch::Tensor &C,
-         const torch::Tensor &s, const torch::Tensor &indices, torch::Tensor &workspace, 
-         int thread_k = -1, int thread_n = -1, int sms = -1, int max_par = 8) {
-  /*
-  A: [m, k], m: # reqs, k: in features
-  B: [r, n, k], r: # models, n: out features, k: in features
-  C: [m, n], m: # reqs, n: out features
-  s: [r, n/g (usually 1), k], r: # models, n: out features, k: in features
-  indices: [m], m: # reqs, ranges from 0 to r-1
-  */
+// void ibmm(const torch::Tensor &A, const torch::Tensor &B, torch::Tensor &C,
+//          const torch::Tensor &s, const torch::Tensor &indices, torch::Tensor &workspace, 
+//          int thread_k = -1, int thread_n = -1, int sms = -1, int max_par = 8) {
+//   /*
+//   A: [m, k], m: # reqs, k: in features
+//   B: [r, n, k], r: # models, n: out features, k: in features
+//   C: [m, n], m: # reqs, n: out features
+//   s: [r, n/g (usually 1), k], r: # models, n: out features, k: in features
+//   indices: [m], m: # reqs, ranges from 0 to r-1
+//   */
   
-  int prob_m = A.size(0);
-  int prob_n = C.size(1);
-  int prob_k = A.size(1);
-  int groupsize = (s.size(0) == 1) ? -1 : prob_k / s.size(0);
-  if (groupsize != -1 && groupsize * s.size(0) != prob_k)
-    AT_ERROR("k=", prob_k, " not compatible with ", s.size(0), " groups.");
-  if (workspace.numel() < prob_n / 128 * max_par)
-    AT_ERROR("workspace must be of size at least ", prob_n / 128 * max_par,
-             ".");
-  int dev = A.get_device();
+//   int prob_m = A.size(0);
+//   int prob_n = C.size(1);
+//   int prob_k = A.size(1);
+//   int groupsize = (s.size(0) == 1) ? -1 : prob_k / s.size(0);
+//   if (groupsize != -1 && groupsize * s.size(0) != prob_k)
+//     AT_ERROR("k=", prob_k, " not compatible with ", s.size(0), " groups.");
+//   if (workspace.numel() < prob_n / 128 * max_par)
+//     AT_ERROR("workspace must be of size at least ", prob_n / 128 * max_par,
+//              ".");
+//   int dev = A.get_device();
 
-  int err = ibmm_cuda_2_4(
-    A.data_ptr(), B.data_ptr(), C.data_ptr(), s.data_ptr(), indices.data_ptr(),
-    prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize,
-    dev, at::cuda::getCurrentCUDAStream(dev), thread_k,
-    thread_n, sms, max_par
-  );
+//   int err = ibmm_cuda_2_4(
+//     A.data_ptr(), B.data_ptr(), C.data_ptr(), s.data_ptr(), indices.data_ptr(),
+//     prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize,
+//     dev, at::cuda::getCurrentCUDAStream(dev), thread_k,
+//     thread_n, sms, max_par
+//   );
   
-  if (err == ERR_PROB_SHAPE) {
-    AT_ERROR("Problem (m=", prob_m, ", n=", prob_n, ", k=", prob_k, ")",
-             " not compatible with thread_k=", thread_k,
-             ", thread_n=", thread_n, ".");
-  } else if (err == ERR_KERN_SHAPE) {
-    AT_ERROR("No kernel implementation for thread_k=", thread_k,
-             ", thread_n=", thread_n, ".");
-  }
-}
+//   if (err == ERR_PROB_SHAPE) {
+//     AT_ERROR("Problem (m=", prob_m, ", n=", prob_n, ", k=", prob_k, ")",
+//              " not compatible with thread_k=", thread_k,
+//              ", thread_n=", thread_n, ".");
+//   } else if (err == ERR_KERN_SHAPE) {
+//     AT_ERROR("No kernel implementation for thread_k=", thread_k,
+//              ", thread_n=", thread_n, ".");
+//   }
+// }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("mul", &mul, "Marlin FP16xINT4 matmul.");
@@ -193,7 +194,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("mul_stream", &mul_stream, "Marlin FP16xINT4 matmul with stream.");
   m.def("mul_stream_parallel", &mul_stream_parallel,
         "Marlin FP16xINT4 matmul with stream.");
-  m.def("ibmm", &ibmm,
-        "Marlin FP16xINT4 matmul with stream.");
+  // m.def("ibmm", &ibmm,
+  //       "Marlin FP16xINT4 matmul with stream.");
 }
 }  // namespace marlin
