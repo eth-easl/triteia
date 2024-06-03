@@ -17,6 +17,7 @@ def benchmark(K, M, num_reqs, num_models, dist):
     
     indices = generate_model_distribution(dist, num_reqs, num_models)
     indices = torch.sort(indices)[0]
+    indices = torch.tensor([-1,-1, 3, 1]).to(DEV)
     # baseline1: fp16: 
     # warmup here
     fp16_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
@@ -114,10 +115,10 @@ if __name__ == "__main__":
     import pandas as pd
     Ks = [4096]
     Ms = [4096]
-    num_requests = [100]
-    num_models = [1,2,4,8,16,32,64,100]
-    distribution = ['azure', 'zipf:1.5']
-    trials = 5
+    num_requests = [4]
+    num_models = [4]
+    distribution = ['uniform']
+    trials = 1
     results = []
     for K in Ks:
         for M in Ms:
@@ -128,5 +129,5 @@ if __name__ == "__main__":
                             res = benchmark(K, M, num_req, num_model, dist)
                             results.extend(res)
     results = pd.DataFrame(results)
-    print(res)
+    print(results)
     # results.to_csv(".local/benchmark_marlin.csv", index=False)

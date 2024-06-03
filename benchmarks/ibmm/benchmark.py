@@ -62,7 +62,6 @@ def benchmark():
     max_num_models = [4]
     num_reqs = 100
     distribution = "uniform"
-    
     for num_models in max_num_models:
         for N in Ns:
             for K in Ks:
