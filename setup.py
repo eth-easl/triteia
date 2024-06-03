@@ -53,7 +53,7 @@ setup(
             ],
             extra_compile_args={
                 "nvcc": [
-                    "-arch=sm_86", "--ptxas-options=-v", "-lineinfo"
+                    "-arch=sm_86", "-arch=sm_80", "--ptxas-options=-v", "-lineinfo"
                 ]
             },
         ),
