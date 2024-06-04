@@ -1,5 +1,5 @@
-#ifndef IBMM_CUDA_KERNEL_CUH
-#define IBMM_CUDA_KERNEL_CUH
+#ifndef BMM_CUDA_KERNEL_CUH
+#define BMM_CUDA_KERNEL_CUH
 
 #include <cuda.h>
 #include <cuda_fp16.h>
@@ -24,11 +24,11 @@ template <const int threads,          // number of threads in a threadblock
           const int group_blocks = -1  // number of consecutive 16x16 blocks
                                        // with a separate quantization scale
           >
-__device__ void Marlin_2_4_internal(
-    const int4 *__restrict__ A,  // fp16 input matrix of shape mxk
-    const int4 *__restrict__ B,  // 4bit quantized weight matrix of shape kxn
+__device__ void marlin_2_4_internal(
+    const int4 *__restrict__ A,  // fp16 input matrix of shape r x mxk
+    const int4 *__restrict__ B,  // 4bit quantized weight matrix of shape r x k x n
     const int4
-        *__restrict__ meta,  // 2bit metadata information about 2:4 format on B
+        *__restrict__ meta,   // 2bit metadata information about 2:4 format on B
     int4 *__restrict__ C,    // fp16 output buffer of shape mxn
     const int4
         *__restrict__ s,  // fp16 quantization scales of shape (k/groupsize)xn
@@ -698,7 +698,7 @@ __device__ void Marlin_2_4_internal(
 template <const int threads, const int thread_m_blocks,
           const int thread_n_blocks, const int thread_k_blocks,
           const int stages, const int group_blocks = -1>
-__global__ void IBMM_2_4(
+__global__ void BMM_2_4(
     // r: number of models
     const int4 *__restrict__ A,     // fp16 input matrix of shape m x k
     const int4 *__restrict__ B,     // fp16 input matrix of shape r x k x n
@@ -708,7 +708,7 @@ __global__ void IBMM_2_4(
         *__restrict__ s,  // fp16 input matrix of shape r x (k/groupsize) x n
     int prob_m, int prob_n, int prob_k, int *locks) {
   // call device function
-  Marlin_2_4_internal<threads, thread_m_blocks, thread_n_blocks,
+  marlin_2_4_internal<threads, thread_m_blocks, thread_n_blocks,
                       thread_k_blocks, stages, group_blocks>(
       A, B, meta, C, s, prob_m, prob_n, prob_k, locks);
 };
@@ -718,17 +718,17 @@ const int STAGES = 4; // 4 pipeline stages fit into shared memory
 const int SHARED_MEM =
     96 * 1024; // max shared memory on compute capability 8.6 (< 8.0)
 
-#define CALL_IF_IBMM_2_4(THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS,         \
+#define CALL_IF_BMM_2_4(THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS,         \
                     GROUP_BLOCKS)                                              \
   else if (thread_m_blocks == THREAD_M_BLOCKS &&                               \
            thread_n_blocks == THREAD_N_BLOCKS &&                               \
            thread_k_blocks == THREAD_K_BLOCKS &&                               \
            group_blocks == GROUP_BLOCKS) {                                     \
-    cudaFuncSetAttribute(IBMM_2_4<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS,   \
+    cudaFuncSetAttribute(BMM_2_4<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS,   \
                                     THREAD_K_BLOCKS, STAGES, GROUP_BLOCKS>,    \
                          cudaFuncAttributeMaxDynamicSharedMemorySize,          \
                          SHARED_MEM);                                          \
-    IBMM_2_4<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS, THREAD_K_BLOCKS,       \
+    BMM_2_4<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS, THREAD_K_BLOCKS,       \
                STAGES, GROUP_BLOCKS><<<blocks, THREADS, SHARED_MEM, stream>>>( \
         A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, prob_n, prob_m, prob_k, locks);  \
   }
@@ -736,7 +736,7 @@ const int SHARED_MEM =
 const int ERR_PROB_SHAPE = 1;
 const int ERR_KERN_SHAPE = 2;
 
-int bmm_cuda_2_4(
+int marlin_cuda_bmm_2_4(
   const void *A, const void *B, const void *meta, void *C, void *s,
   int prob_m, int prob_n, int prob_k, void *workspace, int groupsize=-1,
   int dev=0, cudaStream_t stream = 0, int thread_k = -1,
@@ -802,16 +802,16 @@ int bmm_cuda_2_4(
     // seemed useful (in terms of performance) in our testing, however many more
     // are, in principle, possible.
     if (false) {
-    }                         //         BMxBNxBK,   group
-    CALL_IF_IBMM_2_4(8,  1,  4, -1)  // e.g., 16x128x128
-    CALL_IF_IBMM_2_4(16, 1,  2, -1) // e.g., 16x256x64
-    CALL_IF_IBMM_2_4(16, 2,  2, -1) // e.g.. 32x256x64
-    CALL_IF_IBMM_2_4(16, 3,  2, -1)
-    CALL_IF_IBMM_2_4(16, 4,  2, -1)
-    CALL_IF_IBMM_2_4(32, 1, 1, -1)  // e.g., 16x256x64
-    CALL_IF_IBMM_2_4(32, 2, 1, -1)  // e.g.. 32x256x64
-    CALL_IF_IBMM_2_4(32, 3, 1, -1)
-    CALL_IF_IBMM_2_4(32, 4, 1, -1)
+    } //         BMxBNxBK,   group
+    CALL_IF_BMM_2_4(8,  1,  4, -1)  // e.g., 16x128x128
+    CALL_IF_BMM_2_4(16, 1,  2, -1) // e.g., 16x256x64
+    CALL_IF_BMM_2_4(16, 2,  2, -1) // e.g.. 32x256x64
+    CALL_IF_BMM_2_4(16, 3,  2, -1)
+    CALL_IF_BMM_2_4(16, 4,  2, -1)
+    CALL_IF_BMM_2_4(32, 1, 1, -1)  // e.g., 16x256x64
+    CALL_IF_BMM_2_4(32, 2, 1, -1)  // e.g.. 32x256x64
+    CALL_IF_BMM_2_4(32, 3, 1, -1)
+    CALL_IF_BMM_2_4(32, 4, 1, -1)
     else ret = ERR_KERN_SHAPE;
 
     A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;

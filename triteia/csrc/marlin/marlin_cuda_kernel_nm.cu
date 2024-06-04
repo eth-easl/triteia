@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-#ifndef MARLIN_CUDA_KERNEL_CUH
-#define MARLIN_CUDA_KERNEL_CUH
+#ifndef MARLIN_CUDA_KERNEL_NM_CUH
+#define MARLIN_CUDA_KERNEL_NM_CUH
 
 #include <cuda.h>
 #include <cuda_fp16.h>
@@ -822,7 +822,6 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
     CALL_IF_2_4(32, 3, 1, -1)
     CALL_IF_2_4(32, 4, 1, -1)
     else ret = ERR_KERN_SHAPE;
-
     A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
     C_ptr += 16 * thread_n_blocks * (prob_m / 8) * par;
   }
