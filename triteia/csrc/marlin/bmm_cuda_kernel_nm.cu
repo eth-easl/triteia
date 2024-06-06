@@ -146,11 +146,7 @@ __device__ void marlin_2_4_internal(
       ceildiv(a_sh_stage,
               a_sh_wr_delta);  // number of shared write iterations for a tile
 
-  int x_index = (threadIdx.x % a_gl_rd_delta_o / 8);
-
-  int b_gl_stride = 16 * prob_n / 32; //
-  int b_bmm_gl_stride = 16 * prob_m / 32; // prob_m how many requests
-
+  int b_gl_stride = 16 * prob_n / 32;
   constexpr int b_sh_stride = 32 * thread_n_blocks / 4;
   int b_gl_rd_delta_o = b_gl_stride * thread_k_blocks;
   int b_gl_rd_delta_i = b_gl_stride * (threads / b_sh_stride);
@@ -158,9 +154,8 @@ __device__ void marlin_2_4_internal(
   constexpr int b_sh_rd_delta = threads;
   constexpr int b_sh_stage = b_sh_stride * thread_k_blocks;
   constexpr int b_sh_wr_iters = b_sh_stage / b_sh_wr_delta;
-  
+
   int m_gl_stride = 2 * prob_n / 8;  // (16*2*4 / 8) = 16
-  int m_bmm_gl_stride = 2 * prob_m / 8;  // (16*2*4 / 8) = 16
   constexpr int m_sh_stride =
       (16 * thread_n_blocks) / 4;  // #warps n-dim * threads/warp
   int m_gl_rd_delta_o = m_gl_stride * thread_k_blocks;
@@ -171,7 +166,6 @@ __device__ void marlin_2_4_internal(
   constexpr int m_sh_iters = ceildiv(m_sh_stage, m_sh_wr_delta);
 
   int s_gl_stride = prob_n / 8;
-  int s_bmm_gl_stride = prob_m / 8;
   constexpr int s_sh_stride = 16 * thread_n_blocks / 8;
   constexpr int s_sh_stage = s_sh_stride;
   int s_gl_rd_delta = s_gl_stride;
@@ -180,7 +174,6 @@ __device__ void marlin_2_4_internal(
   int a_gl_rd = a_gl_stride * (threadIdx.x / a_gl_rd_delta_o) +
                 (threadIdx.x % a_gl_rd_delta_o);
   a_gl_rd += a_gl_rd_delta_o * slice_row;
-  
   // Shared write index of current thread.
   int a_sh_wr = a_sh_stride * (threadIdx.x / a_gl_rd_delta_o) +
                 (threadIdx.x % a_gl_rd_delta_o);
@@ -189,13 +182,8 @@ __device__ void marlin_2_4_internal(
       a_sh_stride * ((threadIdx.x % 32) % 16) + (threadIdx.x % 32) / 16;
   a_sh_rd += 4 * ((threadIdx.x / 32) / (thread_n_blocks / 4));
 
-
-  // read B[a_index] instead of B here. 
   int b_gl_rd =
       b_gl_stride * (threadIdx.x / b_sh_stride) + (threadIdx.x % b_sh_stride);
-  // (NOTE:xiaozhe) advance B_gl_rd to reflect the index here
-  
-  b_gl_rd += x_index * b_bmm_gl_stride;
   b_gl_rd += b_sh_stride * slice_col;
   b_gl_rd += b_gl_rd_delta_o * slice_row;
   int b_sh_wr = threadIdx.x;
@@ -203,7 +191,6 @@ __device__ void marlin_2_4_internal(
 
   int m_gl_rd = m_gl_stride * (threadIdx.x / (m_sh_stride)) +
                 (threadIdx.x % (m_sh_stride));
-  m_gl_rd += m_bmm_gl_stride * x_index;
   m_gl_rd += (m_sh_stride)*slice_col;
   m_gl_rd += m_gl_rd_delta_o * slice_row;
   int m_sh_wr = threadIdx.x;
@@ -211,7 +198,6 @@ __device__ void marlin_2_4_internal(
 
   int s_gl_rd = s_gl_stride * ((thread_k_blocks * slice_row) / group_blocks) +
                 s_sh_stride * slice_col + threadIdx.x;
-  s_gl_rd += s_bmm_gl_stride * x_index;
   int s_sh_wr = threadIdx.x;
   int s_sh_rd;
   // We use a different scale layout for grouped and column-wise quantization as
@@ -712,21 +698,38 @@ template <const int threads, const int thread_m_blocks,
           const int thread_n_blocks, const int thread_k_blocks,
           const int stages, const int group_blocks = -1>
 __global__ void BMM_2_4(
-  /**
-   * A:    [n, k]: n: #reqs, k: in features
-   * B:    [n, k/16, 2*m]: n: #reqs, k: in features, m: out features
-   * C:    [n, m]: n: #reqs, m: out features
-   * s:    [n, 1, m]: n: #reqs, m: out features
-   * meta: [n, k, m/16]: n: #reqs, k: in features, m: out features
-  */
+    /**
+     * A:    [n, k]: n: #reqs, k: in features
+     * B:    [n, k/32, 2*m]: n: #reqs, k: in features, m: out features
+     * C:    [n, m]: n: #reqs, m: out features
+     * s:    [n, 1, m]: n: #reqs, m: out features
+     * meta: [n, k, m/16]: n: #reqs, k: in features, m: out features
+     */
     const int4 *__restrict__ A, const int4 *__restrict__ B,
     const int4 *__restrict__ meta, int4 *__restrict__ C,
     const int4 *__restrict__ s, int prob_m, int prob_n, int prob_k,
     int *locks) {
-  // printf("prob_m: %d, prob_n: %d, prob_k: %d\n", prob_m, prob_n, prob_k);
+    // printf("prob_m: %d, prob_n: %d, prob_k: %d\n", prob_m, prob_n, prob_k);
+    // 1 int4 pointer = 4 x 32 bit
+    // B: 32 bit packed, 4
+
+    // A: 16 bit, 8
+    // C: 16 bit, 8
+    // s: 16 bit, 8
+    // meta: 16 bit, 8
+
+  for (int batch_idx = 0; batch_idx < prob_m; batch_idx++) {
+    const int4*__restrict__ A_ptr    = A + batch_idx * prob_k / 8;
+    const int4*__restrict__ B_ptr    = B + batch_idx * prob_k * prob_n / 16 / 4;
+    const int4*__restrict__ meta_ptr = meta + batch_idx * prob_k * prob_n / 16 / 8;
+    
+    const int4*__restrict__ s_ptr    = s + batch_idx * prob_n / 8;
+    int4*__restrict__ C_ptr          = C + batch_idx * prob_n / 8;
+    int* locks_ptr = locks + batch_idx * prob_k / 8;
     marlin_2_4_internal<threads, thread_m_blocks, thread_n_blocks,
                         thread_k_blocks, stages, group_blocks>(
-        A, B, meta, C, s, prob_m, prob_n, prob_k, locks);
+        A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, 1, prob_n, prob_k, locks_ptr);
+  }
 };
 
 const int THREADS = 256;
@@ -752,13 +755,13 @@ const int SHARED_MEM =
 const int ERR_PROB_SHAPE = 1;
 const int ERR_KERN_SHAPE = 2;
 
-  /**
-   * A:    [n, k]: n: #reqs, k: in features
-   * B:    [n, k/16, 2*m]: n: #reqs, k: in features, m: out features
-   * C:    [n, m]: n: #reqs, m: out features
-   * s:    [n, 1, m]: n: #reqs, m: out features
-   * meta: [n, k, m/16]: n: #reqs, k: in features, m: out features
-  */
+/**
+ * A:    [n, k]: n: #reqs, k: in features
+ * B:    [n, k/16, 2*m]: n: #reqs, k: in features, m: out features
+ * C:    [n, m]: n: #reqs, m: out features
+ * s:    [n, 1, m]: n: #reqs, m: out features
+ * meta: [n, k, m/16]: n: #reqs, k: in features, m: out features
+ */
 int marlin_cuda_bmm_2_4(const void *A, const void *B, const void *meta, void *C,
                         void *s, int prob_m, int prob_n, int prob_k,
                         void *workspace, int groupsize = -1, int dev = 0,
@@ -771,7 +774,6 @@ int marlin_cuda_bmm_2_4(const void *A, const void *B, const void *meta, void *C,
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
   if (thread_k == -1 || thread_m == -1) {
     thread_m = 128;
-    // thread_n = 64;
     thread_k = 128;
   }
   int thread_k_blocks = thread_k / 32;  // 2:4 version with m16n8k32 instruction
@@ -806,27 +808,28 @@ int marlin_cuda_bmm_2_4(const void *A, const void *B, const void *meta, void *C,
       i += 4 * (par - 1);
       thread_n_blocks = 4;
     }
-    printf("tot_n_blocks: %d, thread_n_blocks: %d, prob_n: %d, par: %d\n", tot_n_blocks, thread_n_blocks, prob_n, par);
+    printf("tot_n_blocks: %d, thread_n_blocks: %d, prob_n: %d, par: %d\n",
+           tot_n_blocks, thread_n_blocks, prob_n, par);
     // For compilation speed, we only define the kernel configurations that have
     // seemed useful (in terms of performance) in our testing, however many more
     // are, in principle, possible.
     if (false) {
     }  //         BMxBNxBK,   group
     CALL_IF_BMM_2_4(8, 1, 4, -1)  // e.g., 16x128x128
-    // CALL_IF_BMM_2_4(8, 2, 4, -1)
-    // CALL_IF_BMM_2_4(8, 4, 4, -1)   // e.g., 16x128x128
-    // CALL_IF_BMM_2_4(16, 1, 2, -1)  // e.g., 16x256x64
-    // CALL_IF_BMM_2_4(16, 2, 2, -1)  // e.g.. 32x256x64
-    // CALL_IF_BMM_2_4(16, 3, 2, -1)
-    // CALL_IF_BMM_2_4(16, 4, 2, -1)
-    // CALL_IF_BMM_2_4(32, 1, 1, -1)  // e.g., 16x256x64
-    // CALL_IF_BMM_2_4(32, 2, 1, -1)  // e.g.. 32x256x64
-    // CALL_IF_BMM_2_4(32, 3, 1, -1)
-    // CALL_IF_BMM_2_4(32, 4, 1, -1)
+    CALL_IF_BMM_2_4(8, 2, 4, -1)
+    CALL_IF_BMM_2_4(8, 4, 4, -1)   // e.g., 16x128x128
+    CALL_IF_BMM_2_4(16, 1, 2, -1)  // e.g., 16x256x64
+    CALL_IF_BMM_2_4(16, 2, 2, -1)  // e.g.. 32x256x64
+    CALL_IF_BMM_2_4(16, 3, 2, -1)
+    CALL_IF_BMM_2_4(16, 4, 2, -1)
+    CALL_IF_BMM_2_4(32, 1, 1, -1)  // e.g., 16x256x64
+    CALL_IF_BMM_2_4(32, 2, 1, -1)  // e.g.. 32x256x64
+    CALL_IF_BMM_2_4(32, 3, 1, -1)
+    CALL_IF_BMM_2_4(32, 4, 1, -1)
     else ret = ERR_KERN_SHAPE;
 
-    A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
-    C_ptr += 16 * thread_n_blocks * (prob_m / 8) * par;
+    // A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
+    // C_ptr += 16 * thread_n_blocks * (prob_m / 8) * par;
   }
   return ret;
 };
