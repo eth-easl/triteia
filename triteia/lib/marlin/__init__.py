@@ -90,6 +90,18 @@ def mul_stream(
             thread_k, thread_n, sms, max_par
         )
 
+def ibmm_2_4(
+        A, B, meta, C, s, indices, workspace,
+        starts, counts, 
+        thread_k=-1, thread_n=-1, sms=-1, max_par=16
+    ):
+    marlin_cuda.ibmm(
+        A, B, meta, C, s, indices,
+        workspace,starts,counts,
+        thread_k, thread_n, sms, max_par
+    )
+
+
 def bmm_2_4(A, B, meta, C, s, workspace, thread_k=-1, thread_m=-1, sms=-1, max_par=16):
     """Marlin FP16x(INT4+2:4 sparsity) multiply; can be used within `torch.compile`.
     @A: `torch.int` weight matrix of original shape `(r, k)` in Marlin format; see `Layer.pack()`

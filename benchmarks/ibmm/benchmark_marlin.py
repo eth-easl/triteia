@@ -1,6 +1,6 @@
 import torch
 from triteia.ao.utils.distribution import generate_model_distribution
-from triteia.ao.ops.ibmm.ibmm_marlin import ibmm_sparse_marlin, ibmm_sparse_marlin_stream
+from triteia.ao.ops.ibmm.ibmm_marlin import ibmm_sparse_marlin, ibmm_sparse_marlin_stream, ibmm_native
 from triteia.utils.generator import generate_2_4_pruned
 from triteia.ao.ops.ibmm.ibmm_fp16 import ibmm_fp16
 
@@ -73,25 +73,25 @@ def benchmark(K, M, num_reqs, num_models, dist):
     torch.cuda.nvtx.range_pop()
     stream_time = start.elapsed_time(end)
     
-    # # sparse_marlin parallel
-    # # warmup here
-    # parallel_stream_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
-    # parallel_stream_output = ibmm_sparse_marlin_stream(
-    #     4,indices, metas, parallel_stream_output, x, qs, scales, parallel=True
-    # )
-    # # actual measure
-    # start = torch.cuda.Event(enable_timing=True)
-    # end = torch.cuda.Event(enable_timing=True)
-    # parallel_stream_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
-    # torch.cuda.nvtx.range_push("ibmm_sparse_marlin_stream parallel=True")
-    # start.record()
-    # parallel_stream_output = ibmm_sparse_marlin_stream(
-    #     4,indices, metas, parallel_stream_output, x, qs, scales, parallel=True
-    # )
-    # end.record()
-    # torch.cuda.synchronize()
-    # torch.cuda.nvtx.range_pop()
-    # parallel_stream_time = start.elapsed_time(end)
+    # sparse_marlin parallel
+    # warmup here
+    parallel_stream_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
+    parallel_stream_output = ibmm_native(
+        4, indices, metas, parallel_stream_output, x, qs, scales
+    )
+    # actual measure
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    parallel_stream_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
+    torch.cuda.nvtx.range_push("ibmm_sparse_marlin_stream parallel=True")
+    start.record()
+    parallel_stream_output = ibmm_native(
+        4, indices, metas, parallel_stream_output, x, qs, scales, base_weight=base_weight
+    )
+    end.record()
+    torch.cuda.synchronize()
+    torch.cuda.nvtx.range_pop()
+    parallel_stream_time = start.elapsed_time(end)
     result.append({
         "M": M,
         "K": K,
@@ -99,15 +99,16 @@ def benchmark(K, M, num_reqs, num_models, dist):
         "num_models": num_models,
         "dist": dist,
         "func_for_loop": for_loop_time,
-        "func_improved": stream_time,
+        "func_improved_v1": stream_time,
         "func_fp16": fp16_time,
-        #  "func_parallel": parallel_stream_time,
+        "func_improved_v2": parallel_stream_time,
     })
     
-    ## verify resutlts...
-    # if not torch.allclose(ref_output, parallel_stream_output):
-    #     print("error: ref_output != parallel_stream_output")
-    #     pass
+    # verify resutlts...
+    if not torch.allclose(ref_output, parallel_stream_output):
+        print("error: ref_output != parallel_stream_output")
+        print(f"ref_output: {ref_output}")
+        print(parallel_stream_output)
     if not torch.allclose(ref_output, output):
         print("error: ref_output != output")
         print(ref_output)
@@ -116,10 +117,10 @@ def benchmark(K, M, num_reqs, num_models, dist):
     
 if __name__ == "__main__":
     import pandas as pd
-    Ks = [4096]
-    Ms = [4096]
-    num_requests = [100]
-    num_models = [2,4,8,16,32]
+    Ks = [2048]
+    Ms = [2048]
+    num_requests = [16]
+    num_models = [2,4,8,16]
     distribution = ['uniform']
     trials = 1
     results = []

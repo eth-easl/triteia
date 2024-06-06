@@ -1,6 +1,6 @@
 import torch
 import safetensors as st
-from triteia.ao.ops.ibmm.ibmm_marlin import ibmm_sparse_marlin, ibmm_sparse_marlin_stream
+from triteia.ao.ops.ibmm.ibmm_marlin import ibmm_sparse_marlin, ibmm_sparse_marlin_stream, ibmm_native
 from triteia.utils.generator import generate_2_4_pruned
 from triteia.ao.utils.quant_utils import dequantize_weight
 from triteia.ao.utils.distribution import generate_model_distribution
@@ -8,10 +8,12 @@ from triteia.ao.utils.distribution import generate_model_distribution
 DEV="cuda:0"
 
 if __name__=="__main__":
-    k = 5504 # in_feature
+    torch.manual_seed(0)
+    torch.set_printoptions(precision=4, sci_mode=False, edgeitems=4)
+    k = 4096 # in_feature
     m = 4096 # outfeature
-    num_requests = 64
-    num_models = 1
+    num_requests = 32
+    num_models = 8
     distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
@@ -26,8 +28,8 @@ if __name__=="__main__":
         4,indices, metas, ref_output, x, qs, scales
     )
     stream_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
-    stream_output = ibmm_sparse_marlin_stream(
-        4, indices, metas, stream_output, x, qs, scales, parallel=True
+    stream_output = ibmm_native(
+        4, indices, metas, stream_output, x, qs, scales
     )
     for i in range(num_requests):
         if not torch.allclose(ref_output[i], stream_output[i]):

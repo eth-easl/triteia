@@ -725,7 +725,7 @@ __global__ void BMM_2_4(
     
     const int4*__restrict__ s_ptr    = s + batch_idx * prob_n / 8;
     int4*__restrict__ C_ptr          = C + batch_idx * prob_n / 8;
-    int* locks_ptr = locks + batch_idx * prob_k / 8;
+    int* locks_ptr = locks + batch_idx * prob_k;
     marlin_2_4_internal<threads, thread_m_blocks, thread_n_blocks,
                         thread_k_blocks, stages, group_blocks>(
         A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, 1, prob_n, prob_k, locks_ptr);
@@ -828,8 +828,8 @@ int marlin_cuda_bmm_2_4(const void *A, const void *B, const void *meta, void *C,
     CALL_IF_BMM_2_4(32, 4, 1, -1)
     else ret = ERR_KERN_SHAPE;
 
-    // A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
-    // C_ptr += 16 * thread_n_blocks * (prob_m / 8) * par;
+    A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
+    C_ptr += 16 * thread_n_blocks * (prob_m / 8) * par;
   }
   return ret;
 };

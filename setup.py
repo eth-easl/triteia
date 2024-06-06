@@ -41,6 +41,7 @@ setup(
                 "triteia/csrc/marlin/marlin_cuda_kernel.cu",
                 "triteia/csrc/marlin/marlin_cuda_kernel_nm.cu",
                 "triteia/csrc/marlin/bmm_cuda_kernel_nm.cu",
+                "triteia/csrc/marlin/ibmm_cuda_kernel_nm.cu",
             ],
             extra_compile_args={
                 "nvcc": [

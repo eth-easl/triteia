@@ -17,7 +17,7 @@ def benchmark(K, M, num_reqs):
     assert torch.allclose(ref_output, native_output)
     
 if __name__=="__main__":
-    num_reqs = 4
+    num_reqs = 32
     M = 4096
     K = 4096
     benchmark(K, M, num_reqs)
