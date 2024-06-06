@@ -146,7 +146,11 @@ __device__ void marlin_2_4_internal(
       ceildiv(a_sh_stage,
               a_sh_wr_delta);  // number of shared write iterations for a tile
 
-  int b_gl_stride = 16 * prob_n / 32; // prob_n how many requests
+  int x_index = (threadIdx.x % a_gl_rd_delta_o / 8);
+
+  int b_gl_stride = 16 * prob_n / 32; //
+  int b_bmm_gl_stride = 16 * prob_m / 32; // prob_m how many requests
+
   constexpr int b_sh_stride = 32 * thread_n_blocks / 4;
   int b_gl_rd_delta_o = b_gl_stride * thread_k_blocks;
   int b_gl_rd_delta_i = b_gl_stride * (threads / b_sh_stride);
@@ -154,8 +158,9 @@ __device__ void marlin_2_4_internal(
   constexpr int b_sh_rd_delta = threads;
   constexpr int b_sh_stage = b_sh_stride * thread_k_blocks;
   constexpr int b_sh_wr_iters = b_sh_stage / b_sh_wr_delta;
-
+  
   int m_gl_stride = 2 * prob_n / 8;  // (16*2*4 / 8) = 16
+  int m_bmm_gl_stride = 2 * prob_m / 8;  // (16*2*4 / 8) = 16
   constexpr int m_sh_stride =
       (16 * thread_n_blocks) / 4;  // #warps n-dim * threads/warp
   int m_gl_rd_delta_o = m_gl_stride * thread_k_blocks;
@@ -166,6 +171,7 @@ __device__ void marlin_2_4_internal(
   constexpr int m_sh_iters = ceildiv(m_sh_stage, m_sh_wr_delta);
 
   int s_gl_stride = prob_n / 8;
+  int s_bmm_gl_stride = prob_m / 8;
   constexpr int s_sh_stride = 16 * thread_n_blocks / 8;
   constexpr int s_sh_stage = s_sh_stride;
   int s_gl_rd_delta = s_gl_stride;
@@ -188,8 +194,8 @@ __device__ void marlin_2_4_internal(
   int b_gl_rd =
       b_gl_stride * (threadIdx.x / b_sh_stride) + (threadIdx.x % b_sh_stride);
   // (NOTE:xiaozhe) advance B_gl_rd to reflect the index here
-  int x_index = (threadIdx.x % a_gl_rd_delta_o / 8);
-  // b_gl_rd += x_index 
+  
+  b_gl_rd += x_index * b_bmm_gl_stride;
   b_gl_rd += b_sh_stride * slice_col;
   b_gl_rd += b_gl_rd_delta_o * slice_row;
   int b_sh_wr = threadIdx.x;
@@ -197,6 +203,7 @@ __device__ void marlin_2_4_internal(
 
   int m_gl_rd = m_gl_stride * (threadIdx.x / (m_sh_stride)) +
                 (threadIdx.x % (m_sh_stride));
+  m_gl_rd += m_bmm_gl_stride * x_index;
   m_gl_rd += (m_sh_stride)*slice_col;
   m_gl_rd += m_gl_rd_delta_o * slice_row;
   int m_sh_wr = threadIdx.x;
@@ -204,6 +211,7 @@ __device__ void marlin_2_4_internal(
 
   int s_gl_rd = s_gl_stride * ((thread_k_blocks * slice_row) / group_blocks) +
                 s_sh_stride * slice_col + threadIdx.x;
+  s_gl_rd += s_bmm_gl_stride * x_index;
   int s_sh_wr = threadIdx.x;
   int s_sh_rd;
   // We use a different scale layout for grouped and column-wise quantization as
