@@ -56,5 +56,6 @@ def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_i
         counts,
         parallel=parallel
     )
+    torch.cuda.synchronize()
     y += output
     return y

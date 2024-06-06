@@ -78,6 +78,7 @@ __global__ void Marlin_2_4(
       prob_n / 16 / thread_n_blocks; // number of thread_n_blocks in n-dim
   int iters = ceildiv(k_tiles * n_tiles * parallel,
                       gridDim.x); // iters needeed to cover all slices
+  
   // Ensure that the number of tiles in each stripe is a multiple of the
   // groupsize; this avoids an annoying special case where a stripe starts in
   // the middle of group.
@@ -204,8 +205,10 @@ __global__ void Marlin_2_4(
 
   int b_gl_rd =
       b_gl_stride * (threadIdx.x / b_sh_stride) + (threadIdx.x % b_sh_stride);
+  
   b_gl_rd += b_sh_stride * slice_col;
   b_gl_rd += b_gl_rd_delta_o * slice_row;
+  
   int b_sh_wr = threadIdx.x;
   int b_sh_rd = threadIdx.x;
 
