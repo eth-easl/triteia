@@ -200,6 +200,7 @@ void ibmm_2_4(const torch::Tensor &A, const torch::Tensor &B,
           const torch::Tensor &indices, torch::Tensor &workspace,
           const torch::Tensor &starts, const torch::Tensor &counts,
           int thread_k = -1, int thread_n = -1, int sms = -1, int max_par = 8) {
+  
   int prob_n = A.size(0);
   int prob_m = C.size(1);
   int prob_k = A.size(1);
@@ -234,7 +235,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("mul_stream", &mul_stream, "Marlin FP16xINT4 matmul with stream.");
   m.def("mul_stream_parallel", &mul_stream_parallel,
         "Marlin FP16xINT4 matmul with stream.");
-  m.def("bmm_2_4", &bmm_2_4, "Batched FP16xINT4 matmul with stream.");
+  m.def("bmm_2_4", &bmm_2_4, "Selective Batched FP16xINT4 matmul with stream.");
   m.def("ibmm", &ibmm_2_4, "Batched FP16xINT4 matmul with stream.");
 }
 }  // namespace marlin

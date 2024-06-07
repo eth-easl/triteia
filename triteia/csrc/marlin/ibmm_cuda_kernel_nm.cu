@@ -712,7 +712,7 @@ __global__ void IBMM_2_4(
   // printf("prob_m: %d, prob_n: %d, prob_k: %d\n", prob_m, prob_n, prob_k);
   // 1 int4 pointer = 4 x 32 bit
   // B: 32 bit packed, 4
-
+ 
   // A: 16 bit, 8
   // C: 16 bit, 8
   // s: 16 bit, 8
@@ -756,7 +756,7 @@ const int SHARED_MEM =
     IBMM_2_4<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS, THREAD_K_BLOCKS,     \
              STAGES, GROUP_BLOCKS><<<blocks, THREADS, SHARED_MEM, stream>>>( \
         A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, indices_ptr, starts_ptr,       \
-        counts_ptr, prob_n, prob_m, prob_k,prob_r, locks);                          \
+        counts_ptr, prob_n, prob_m, prob_k,prob_r, locks);                   \
   }
 
 const int ERR_PROB_SHAPE = 1;
@@ -779,6 +779,7 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
   int tot_n = prob_n;
   int tot_n_blocks = ceildiv(tot_n, 16);
   int pad = 16 * tot_n_blocks - tot_n;
+
   if (sms == -1)
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
   if (thread_k == -1 || thread_m == -1) {
@@ -809,8 +810,11 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
   int *counts_ptr = (int *)counts;
 
   int ret = 0;
+  printf("prob_m: %d, prob_n: %d, prob_k: %d\n", prob_m, prob_n, prob_k);
   for (int i = 0; i < tot_n_blocks; i += 4) {
-    int thread_n_blocks = tot_n_blocks - i;
+    int thread_n_blocks = tot_n_blocks - i; // 2
+
+    printf("tot_n_blocks: %d, thread_n_blocks: %d\n", tot_n_blocks, thread_n_blocks);
     prob_n = tot_n - 16 * i;
     int par = 1;
     if (thread_n_blocks > 4) {
@@ -841,16 +845,12 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
     CALL_IF_IBMM_2_4(32, 3, 1, -1)
     CALL_IF_IBMM_2_4(32, 4, 1, -1)
     else ret = ERR_KERN_SHAPE;
-
+    
+    printf("thread_n_blocks %d, par: %d\n", thread_n_blocks, par);
     A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
     C_ptr += 16 * thread_n_blocks * (prob_m / 8) * par;
-    //
-    B_ptr += 16 * thread_n_blocks * (prob_k * prob_m / 16 / 4) * par;
-    meta_ptr += 16 * thread_n_blocks * (prob_k * prob_m / 16 / 8) * par;
-    s_ptr += 16 * thread_n_blocks * (prob_m / 8) * par;
   }
   return ret;
 };
-
 #endif
 }

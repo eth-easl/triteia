@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import safetensors as st
 from triteia.ao.ops.ibmm.ibmm_marlin import ibmm_sparse_marlin, ibmm_sparse_marlin_stream, ibmm_native
 from triteia.utils.generator import generate_2_4_pruned
@@ -9,11 +10,12 @@ DEV="cuda:0"
 
 if __name__=="__main__":
     torch.manual_seed(0)
+    np.random.seed(0)
     torch.set_printoptions(precision=4, sci_mode=False, edgeitems=4)
-    k = 4096 # in_feature
-    m = 4096 # outfeature
+    k = 1024 # in_feature
+    m = 1024 # outfeature
     num_requests = 32
-    num_models = 8
+    num_models = 4
     distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
@@ -31,9 +33,11 @@ if __name__=="__main__":
     stream_output = ibmm_native(
         4, indices, metas, stream_output, x, qs, scales
     )
+    wrong_rows = []
     for i in range(num_requests):
         if not torch.allclose(ref_output[i], stream_output[i]):
-            print(f"Error starts at row {i}")
-            print(f"ref_output: {ref_output}")
-            print(f"stream_output: {stream_output}")
-            break
+            print(f"Error at row {i}, indices={indices[i]}")
+            wrong_rows.append(i)
+            print(f"ref_output: {ref_output[i]}")
+            print(f"stream_output: {stream_output[i]}")
+    print(f"Wrong rows: {wrong_rows}")

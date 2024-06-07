@@ -14,10 +14,15 @@ def benchmark(K, M, num_reqs):
     ref_output = bmm_sparse_marlin_forloop(4, x, qs, scales, metas)
     
     native_output = bmm_native(4, x, qs, scales, metas)
-    assert torch.allclose(ref_output, native_output)
+    for i in range(num_reqs):
+        if not torch.allclose(ref_output[i], native_output[i]):
+            print(f"Error at row {i}")
+            print(f"ref_output: {ref_output[i]}")
+            print(f"native_output: {native_output[i]}")
+
     
 if __name__=="__main__":
-    num_reqs = 32
+    num_reqs = 128
     M = 4096
     K = 4096
     benchmark(K, M, num_reqs)

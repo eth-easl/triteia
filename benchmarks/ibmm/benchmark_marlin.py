@@ -117,10 +117,10 @@ def benchmark(K, M, num_reqs, num_models, dist):
     
 if __name__ == "__main__":
     import pandas as pd
-    Ks = [2048]
-    Ms = [2048]
-    num_requests = [16]
-    num_models = [2,4,8,16]
+    Ks = [1024]
+    Ms = [1024]
+    num_requests = [32]
+    num_models = [2,4]
     distribution = ['uniform']
     trials = 1
     results = []

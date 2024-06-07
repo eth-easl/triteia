@@ -79,11 +79,15 @@ __device__ void marlin_2_4_internal(
       0;          // total number of active threadblocks in the current slice
   int slice_idx;  // index of threadblock in current slice; numbered bottom to
                   // top
-
   if (slice_col_par >= n_tiles) {
+    
     A += (slice_col_par / n_tiles) * 16 * thread_m_blocks * prob_k / 8;
+    B += (slice_col_par / n_tiles) * 16 * thread_m_blocks * prob_n * prob_k / 64;
+    meta += (slice_col_par / n_tiles) * 16 * thread_m_blocks * prob_n * prob_k / 128;
+    s += (slice_col_par / n_tiles) * 16 * thread_m_blocks * prob_k / 8;
     C += (slice_col_par / n_tiles) * 16 * thread_m_blocks * prob_n / 8;
     locks += (slice_col_par / n_tiles) * n_tiles;
+
     slice_col = slice_col_par % n_tiles;
   }
 
@@ -113,6 +117,10 @@ __device__ void marlin_2_4_internal(
     if (slice_col == n_tiles) {
       A += 16 * thread_m_blocks * prob_k / 8;
       C += 16 * thread_m_blocks * prob_n / 8;
+
+      B +=  16 * thread_m_blocks * prob_n * prob_k / 64;
+      meta += 16 * thread_m_blocks * prob_n * prob_k / 128;
+      s += 16 * thread_m_blocks * prob_k / 8;
       locks += n_tiles;
       slice_col = 0;
     }
@@ -717,7 +725,8 @@ __global__ void BMM_2_4(
     // C: 16 bit, 8
     // s: 16 bit, 8
     // meta: 16 bit, 8
-
+    // locks: 32 bit
+  // printf("thread_m_blocks: %d, thread_n_blocks: %d, thread_k_blocks: %d, group_blocks: %d\n", thread_m_blocks, thread_n_blocks, thread_k_blocks, group_blocks);
   for (int batch_idx = 0; batch_idx < prob_m; batch_idx++) {
     const int4*__restrict__ A_ptr    = A + batch_idx * prob_k / 8;
     const int4*__restrict__ B_ptr    = B + batch_idx * prob_k * prob_n / 16 / 4;
@@ -725,8 +734,10 @@ __global__ void BMM_2_4(
     
     const int4*__restrict__ s_ptr    = s + batch_idx * prob_n / 8;
     int4*__restrict__ C_ptr          = C + batch_idx * prob_n / 8;
-    int* locks_ptr = locks + batch_idx * prob_k;
-    marlin_2_4_internal<threads, thread_m_blocks, thread_n_blocks,
+    int* locks_ptr                   = locks + batch_idx * prob_k;
+    const int possible_thread_m_blocks = 1;
+
+    marlin_2_4_internal<threads, possible_thread_m_blocks, thread_n_blocks,
                         thread_k_blocks, stages, group_blocks>(
         A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, 1, prob_n, prob_k, locks_ptr);
   }
@@ -762,6 +773,7 @@ const int ERR_KERN_SHAPE = 2;
  * s:    [n, 1, m]: n: #reqs, m: out features
  * meta: [n, k, m/16]: n: #reqs, k: in features, m: out features
  */
+
 int marlin_cuda_bmm_2_4(const void *A, const void *B, const void *meta, void *C,
                         void *s, int prob_m, int prob_n, int prob_k,
                         void *workspace, int groupsize = -1, int dev = 0,
@@ -795,10 +807,12 @@ int marlin_cuda_bmm_2_4(const void *A, const void *B, const void *meta, void *C,
   int cols = prob_m / thread_m;
   int *locks = (int *)workspace;
   int ret = 0;
+  printf("prob_m: %d, prob_n: %d, prob_k: %d\n", prob_m, prob_n, prob_k);
   for (int i = 0; i < tot_n_blocks; i += 4) {
     int thread_n_blocks = tot_n_blocks - i;
     prob_n = tot_n - 16 * i;
     int par = 1;
+    printf("thread_n_blocks: %d\n", thread_n_blocks);
     if (thread_n_blocks > 4) {
       // Note that parallel > 1 currently only works for inputs without any
       // padding
@@ -808,8 +822,6 @@ int marlin_cuda_bmm_2_4(const void *A, const void *B, const void *meta, void *C,
       i += 4 * (par - 1);
       thread_n_blocks = 4;
     }
-    printf("tot_n_blocks: %d, thread_n_blocks: %d, prob_n: %d, par: %d\n",
-           tot_n_blocks, thread_n_blocks, prob_n, par);
     // For compilation speed, we only define the kernel configurations that have
     // seemed useful (in terms of performance) in our testing, however many more
     // are, in principle, possible.
@@ -830,6 +842,7 @@ int marlin_cuda_bmm_2_4(const void *A, const void *B, const void *meta, void *C,
 
     A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
     C_ptr += 16 * thread_n_blocks * (prob_m / 8) * par;
+    // locks += 16 * thread_n_blocks * (prob_k / 8) * par;
   }
   return ret;
 };

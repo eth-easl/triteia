@@ -26,7 +26,11 @@ def bmm_native(bitwidth, x, qweight, scale, metas):
     outputs = torch.zeros(
         (x.shape[0], scale.shape[2]), dtype=x.dtype, device=x.device
     )
-    workspace = torch.zeros(16384 // 128 * 16, device=x.device)
+    workspace = torch.zeros(
+        x.shape[0] * scale.shape[2], 
+        device=x.device,
+        dtype=torch.int32
+    )
     marlin.bmm_2_4(
         x,
         qweight,
