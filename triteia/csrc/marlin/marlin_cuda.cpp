@@ -53,7 +53,7 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
                          int prob_n, int prob_k, int prob_r, void *workspace,
                          int groupsize = -1, int dev = 0,
                          cudaStream_t stream = 0, int thread_k = -1,
-                         int thread_m = -1, int sms = -1, int max_par = 16);
+                         int thread_m = -1, int sms = -1, int max_par = 16, int max_count=-1);
 
 const int ERR_PROB_SHAPE = 1;
 const int ERR_KERN_SHAPE = 2;
@@ -205,6 +205,7 @@ void ibmm_2_4(const torch::Tensor &A, const torch::Tensor &B,
   int prob_m = C.size(1);
   int prob_k = A.size(1);
   int prob_r = indices.size(0);
+  int max_count = counts.max().item<int>();
   int groupsize = (s.size(1) == 1) ? -1 : prob_k / s.size(1);
   
   if (groupsize != -1 && groupsize * s.size(1) != prob_k)
@@ -217,7 +218,7 @@ void ibmm_2_4(const torch::Tensor &A, const torch::Tensor &B,
       A.data_ptr(), B.data_ptr(), meta.data_ptr(), C.data_ptr(), s.data_ptr(),
       indices.data_ptr(), starts.data_ptr(), counts.data_ptr(), prob_m, prob_n,
       prob_k, prob_r, workspace.data_ptr(), groupsize, dev,
-      at::cuda::getCurrentCUDAStream(dev), thread_k, thread_n, sms, max_par);
+      at::cuda::getCurrentCUDAStream(dev), thread_k, thread_n, sms, max_par, max_count);
   
   if (err == ERR_PROB_SHAPE) {
     AT_ERROR("Problem (m=", prob_m, ", n=", prob_n, ", k=", prob_k, ")",

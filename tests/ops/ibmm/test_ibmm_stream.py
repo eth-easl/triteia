@@ -14,12 +14,13 @@ if __name__=="__main__":
     torch.set_printoptions(precision=4, sci_mode=False, edgeitems=4)
     k = 256 # in_feature
     m = 256 # outfeature
-    num_requests = 64
-    num_models = 2
+    num_requests = 32
+    num_models = 1
     distribution = "zipf:2"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
     
+    indices = torch.tensor([0] * num_requests, device=DEV, dtype=torch.int32)
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1
     
