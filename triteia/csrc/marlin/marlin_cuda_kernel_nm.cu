@@ -63,7 +63,7 @@ __global__ void Marlin_2_4(
   // ensures good utilization of all SMs for many kinds of shape and GPU
   // configurations, while requiring as few slow global cross-threadblock
   // reductions as possible.
-
+  
   // For larger GEMMs we run multiple batchsize 64 versions in parallel for a
   // better partitioning with less reductions
   int parallel = 1;
@@ -759,7 +759,7 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
   int tot_n = prob_n;
   int tot_n_blocks = ceildiv(tot_n, 16);
   int pad = 16 * tot_n_blocks - tot_n;
-
+  printf("marlin tot_n_blocks: %d\n", tot_n_blocks);
   if (sms == -1)
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
   if (thread_k == -1 || thread_m == -1) {
@@ -809,7 +809,7 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
       i += 4 * (par - 1);
       thread_n_blocks = 4;
     }
-
+    printf("marlin thread_m_blocks: %d, thread_n_blocks: %d, thread_k_blocks: %d, group_blocks: %d\n", thread_m_blocks, thread_n_blocks, thread_k_blocks, group_blocks);
     // For compilation speed, we only define the kernel configurations that have
     // seemed useful (in terms of performance) in our testing, however many more
     // are, in principle, possible.

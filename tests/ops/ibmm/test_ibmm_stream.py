@@ -12,22 +12,21 @@ if __name__=="__main__":
     torch.manual_seed(0)
     np.random.seed(0)
     torch.set_printoptions(precision=4, sci_mode=False, edgeitems=4)
-    k = 1024 # in_feature
-    m = 1024 # outfeature
-    num_requests = 50
+    k = 256 # in_feature
+    m = 256 # outfeature
+    num_requests = 64
     num_models = 2
-    distribution = "uniform"
+    distribution = "zipf:2"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
     
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1
-    workspace = torch.zeros(m // 128 * 16, device=DEV, dtype=torch.int32)
-    x = torch.randn((num_requests, k), dtype=torch.float16, device=DEV)
     
+    x = torch.randn((num_requests, k), dtype=torch.float16, device=DEV)
     ref_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
-    ibmm_sparse_marlin(
-        4,indices, metas, ref_output, x, qs, scales
+    ref_output = ibmm_sparse_marlin( 
+        4, indices, metas, ref_output, x, qs, scales
     )
     stream_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
     stream_output = ibmm_native(
