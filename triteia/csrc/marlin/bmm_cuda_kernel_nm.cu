@@ -726,7 +726,7 @@ __global__ void BMM_2_4(
     // s: 16 bit, 8
     // meta: 16 bit, 8
     // locks: 32 bit
-  // printf("thread_m_blocks: %d, thread_n_blocks: %d, thread_k_blocks: %d, group_blocks: %d\n", thread_m_blocks, thread_n_blocks, thread_k_blocks, group_blocks);
+ printf("thread_m_blocks: %d, thread_n_blocks: %d, thread_k_blocks: %d, group_blocks: %d\n", thread_m_blocks, thread_n_blocks, thread_k_blocks, group_blocks);
   for (int batch_idx = 0; batch_idx < prob_m; batch_idx++) {
     const int4*__restrict__ A_ptr    = A + batch_idx * prob_k / 8;
     const int4*__restrict__ B_ptr    = B + batch_idx * prob_k * prob_n / 16 / 4;
@@ -736,7 +736,6 @@ __global__ void BMM_2_4(
     int4*__restrict__ C_ptr          = C + batch_idx * prob_n / 8;
     int* locks_ptr                   = locks + batch_idx * prob_k;
     const int possible_thread_m_blocks = 1;
-
     marlin_2_4_internal<threads, possible_thread_m_blocks, thread_n_blocks,
                         thread_k_blocks, stages, group_blocks>(
         A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, 1, prob_n, prob_k, locks_ptr);

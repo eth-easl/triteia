@@ -19,10 +19,10 @@ def benchmark(K, M, num_reqs):
             print(f"Error at row {i}")
             print(f"ref_output: {ref_output[i]}")
             print(f"native_output: {native_output[i]}")
-
-    
+    print(f"ref_output: {ref_output}")
+    print(f"native_output: {native_output}")
 if __name__=="__main__":
-    num_reqs = 128
-    M = 4096
-    K = 4096
+    num_reqs = 64
+    M = 1024
+    K = 1024
     benchmark(K, M, num_reqs)

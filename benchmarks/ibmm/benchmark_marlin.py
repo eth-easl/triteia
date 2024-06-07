@@ -119,8 +119,8 @@ if __name__ == "__main__":
     import pandas as pd
     Ks = [1024]
     Ms = [1024]
-    num_requests = [32]
-    num_models = [2,4]
+    num_requests = [64]
+    num_models = [1]
     distribution = ['uniform']
     trials = 1
     results = []

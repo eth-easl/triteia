@@ -708,33 +708,40 @@ __global__ void IBMM_2_4(
     const int4 *__restrict__ A, const int4 *__restrict__ B,
     const int4 *__restrict__ meta, int4 *__restrict__ C,
     const int4 *__restrict__ s, int *indices_ptr, int *starts_ptr,
-    int *counts_ptr, int prob_m, int prob_n, int prob_k, int prob_r, int *locks) {
-  // printf("prob_m: %d, prob_n: %d, prob_k: %d\n", prob_m, prob_n, prob_k);
+    int *counts_ptr, int prob_m, int prob_n, int prob_k, int prob_r,
+    int *locks) {
   // 1 int4 pointer = 4 x 32 bit
   // B: 32 bit packed, 4
- 
+
   // A: 16 bit, 8
   // C: 16 bit, 8
   // s: 16 bit, 8
   // meta: 16 bit, 8
-  // workspace: int 32 [n, m/8]: m/8 
+  // workspace: int 32 [n, m/8]: m/8
   for (int batch_idx = 0; batch_idx < prob_r; batch_idx++) {
     int start = starts_ptr[batch_idx];
     int weight_indices = indices_ptr[batch_idx];
     int count = counts_ptr[batch_idx];
-
     const int4 *__restrict__ A_ptr = A + start * prob_k / 8;
-    const int4 *__restrict__ B_ptr = B + weight_indices * prob_k * prob_n / 16 / 4;
+    const int4 *__restrict__ B_ptr =
+        B + weight_indices * prob_k * prob_n / 16 / 4;
     const int4 *__restrict__ meta_ptr =
         meta + weight_indices * prob_k * prob_n / 16 / 8;
     const int4 *__restrict__ s_ptr = s + weight_indices * prob_n / 8;
-
     int4 *__restrict__ C_ptr = C + start * prob_n / 8;
     int *locks_ptr = locks + batch_idx * prob_k / 8;
 
-    ibmm_marlin_2_4_internal<threads, thread_m_blocks, thread_n_blocks,
-                             thread_k_blocks, stages, group_blocks>(
+    const int max_thread_m_blocks = ceildiv(count, 16);
+
+    ibmm_marlin_2_4_internal<threads, 1, thread_n_blocks, thread_k_blocks,
+                             stages, group_blocks>(
         A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, count, prob_n, prob_k, locks_ptr);
+
+    // ibmm_marlin_2_4_internal<threads, possible_thread_m_blocks,
+    // thread_n_blocks,
+    //                          thread_k_blocks, stages, group_blocks>(
+    //     A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, count, prob_n, prob_k,
+    //     locks_ptr);
   }
 };
 
@@ -749,14 +756,14 @@ const int SHARED_MEM =
            thread_n_blocks == THREAD_N_BLOCKS &&                             \
            thread_k_blocks == THREAD_K_BLOCKS &&                             \
            group_blocks == GROUP_BLOCKS) {                                   \
-    cudaFuncSetAttribute(IBMM_2_4<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS,  \
-                                 THREAD_K_BLOCKS, STAGES, GROUP_BLOCKS>,     \
+    cudaFuncSetAttribute(IBMM_2_4<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS, \
+                                  THREAD_K_BLOCKS, STAGES, GROUP_BLOCKS>,    \
                          cudaFuncAttributeMaxDynamicSharedMemorySize,        \
                          SHARED_MEM);                                        \
     IBMM_2_4<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS, THREAD_K_BLOCKS,     \
              STAGES, GROUP_BLOCKS><<<blocks, THREADS, SHARED_MEM, stream>>>( \
         A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, indices_ptr, starts_ptr,       \
-        counts_ptr, prob_n, prob_m, prob_k,prob_r, locks);                   \
+        counts_ptr, prob_n, prob_m, prob_k, prob_r, locks);                  \
   }
 
 const int ERR_PROB_SHAPE = 1;
@@ -794,7 +801,7 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
   if (prob_m % thread_m != 0 || prob_k % thread_k != 0 ||
       (group_blocks != -1 && (prob_k / 2) % group_blocks != 0))
     return ERR_PROB_SHAPE;
-  
+
   if (prob_m == 0 || prob_n == 0 || prob_k == 0) return 0;
   const int4 *A_ptr = (const int4 *)A;
   const int4 *B_ptr = (const int4 *)B;
@@ -804,17 +811,14 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
 
   int cols = prob_m / thread_m;
   int *locks = (int *)workspace;
-  
+
   int *indices_ptr = (int *)indices;
   int *starts_ptr = (int *)starts;
   int *counts_ptr = (int *)counts;
 
   int ret = 0;
-  printf("prob_m: %d, prob_n: %d, prob_k: %d\n", prob_m, prob_n, prob_k);
   for (int i = 0; i < tot_n_blocks; i += 4) {
-    int thread_n_blocks = tot_n_blocks - i; // 2
-
-    printf("tot_n_blocks: %d, thread_n_blocks: %d\n", tot_n_blocks, thread_n_blocks);
+    int thread_n_blocks = tot_n_blocks - i;  // 2
     prob_n = tot_n - 16 * i;
     int par = 1;
     if (thread_n_blocks > 4) {
@@ -826,26 +830,32 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
       i += 4 * (par - 1);
       thread_n_blocks = 4;
     }
-    // printf("tot_n_blocks: %d, thread_n_blocks: %d, prob_n: %d, par: %d\n",
-    //        tot_n_blocks, thread_n_blocks, prob_n, par);
+    printf("tot_n_blocks: %d, thread_n_blocks: %d, prob_n: %d, par: %d\n",
+           tot_n_blocks, thread_n_blocks, prob_n, par);
     // For compilation speed, we only define the kernel configurations that have
     // seemed useful (in terms of performance) in our testing, however many more
     // are, in principle, possible.
+    printf("thread_m_blocks %d, thread_n_blocks %d, thread_k_blocks %d\n",
+           thread_m_blocks, thread_n_blocks, thread_k_blocks);
     if (false) {
-    }  //         BMxBNxBK,   group
-    CALL_IF_IBMM_2_4(8, 1, 4, -1)  // e.g., 16x128x128
+    }
+      //           BMxBNxBK, group
+    // CALL_IF_IBMM_2_4(8, 1, 4, -1)   // e.g., 16x128x128
     CALL_IF_IBMM_2_4(8, 2, 4, -1)
-    CALL_IF_IBMM_2_4(8, 4, 4, -1)   // e.g., 16x128x128
-    CALL_IF_IBMM_2_4(16, 1, 2, -1)  // e.g., 16x256x64
-    CALL_IF_IBMM_2_4(16, 2, 2, -1)  // e.g.. 32x256x64
-    CALL_IF_IBMM_2_4(16, 3, 2, -1)
-    CALL_IF_IBMM_2_4(16, 4, 2, -1)
-    CALL_IF_IBMM_2_4(32, 1, 1, -1)  // e.g., 16x256x64
-    CALL_IF_IBMM_2_4(32, 2, 1, -1)  // e.g.. 32x256x64
-    CALL_IF_IBMM_2_4(32, 3, 1, -1)
-    CALL_IF_IBMM_2_4(32, 4, 1, -1)
+    // CALL_IF_IBMM_2_4(8, 3, 4, -1)
+    CALL_IF_IBMM_2_4(8, 4, 4, -1)  // e.g., 16x128x128
+
+    // CALL_IF_IBMM_2_4(16, 1, 2, -1)  // e.g., 16x256x64
+    // CALL_IF_IBMM_2_4(16, 2, 2, -1)  // e.g.. 32x256x64
+    // CALL_IF_IBMM_2_4(16, 3, 2, -1)
+    // CALL_IF_IBMM_2_4(16, 4, 2, -1)
+
+    // CALL_IF_IBMM_2_4(32, 1, 1, -1)  // e.g., 16x256x64
+    // CALL_IF_IBMM_2_4(32, 2, 1, -1)  // e.g.. 32x256x64
+    // CALL_IF_IBMM_2_4(32, 3, 1, -1)
+    // CALL_IF_IBMM_2_4(32, 4, 1, -1)
     else ret = ERR_KERN_SHAPE;
-    
+
     printf("thread_n_blocks %d, par: %d\n", thread_n_blocks, par);
     A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
     C_ptr += 16 * thread_n_blocks * (prob_m / 8) * par;
