@@ -12,18 +12,21 @@ if __name__=="__main__":
     torch.manual_seed(0)
     np.random.seed(0)
     torch.set_printoptions(precision=4, sci_mode=False, edgeitems=4)
-    k = 256 # in_feature
-    m = 256 # outfeature
+    k = 1024 # in_feature
+    m = 1024 # outfeature
     num_requests = 32
     num_models = 1
     distribution = "zipf:2"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
-    indices = torch.tensor([0] * num_requests, device=DEV, dtype=torch.int32)
+    # indices = torch.tensor([0] * 16, device=DEV, dtype=torch.int32)
+    # indices = torch.cat((indices, torch.tensor([1] * 16, device=DEV, dtype=torch.int32)))
+    indices = torch.tensor([0] * 32, device=DEV, dtype=torch.int32)
     
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1
-    
+    print(f"qs[0]: {qs[0][0][0:10]}")
+    # print(f"qs[1]: {qs[1][0][0:10]}")
     x = torch.randn((num_requests, k), dtype=torch.float16, device=DEV)
     ref_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
     ref_output = ibmm_sparse_marlin( 
@@ -33,6 +36,7 @@ if __name__=="__main__":
     stream_output = ibmm_native(
         4, indices, metas, stream_output, x, qs, scales
     )
+    
     wrong_rows = []
     for i in range(num_requests):
         if not torch.allclose(ref_output[i], stream_output[i]):

@@ -205,7 +205,6 @@ void ibmm_2_4(const torch::Tensor &A, const torch::Tensor &B,
   int prob_m = C.size(1);
   int prob_k = A.size(1);
   int prob_r = indices.size(0);
-  int max_count = counts.max().item<int>();
   int groupsize = (s.size(1) == 1) ? -1 : prob_k / s.size(1);
   
   if (groupsize != -1 && groupsize * s.size(1) != prob_k)
