@@ -715,14 +715,14 @@ __global__ void IBMM_2_4(
     const int4 *__restrict__ s, int *indices_ptr, int *starts_ptr,
     int *counts_ptr, int prob_m, int prob_n, int prob_k, int prob_r,
     int *locks) {
-    // 1 int4 pointer = 4 x 32 bit
-    // B: 32 bit packed, 4
+  // 1 int4 pointer = 4 x 32 bit
+  // B: 32 bit packed, 4
 
-    // A: 16 bit, 8
-    // C: 16 bit, 8
-    // s: 16 bit, 8
-    // meta: 16 bit, 8
-    // workspace: int 32 [n, m/8]: m/8
+  // A: 16 bit, 8
+  // C: 16 bit, 8
+  // s: 16 bit, 8
+  // meta: 16 bit, 8
+  // workspace: int 32 [n, m/8]: m/8
   for (int batch_idx = 0; batch_idx < prob_r; batch_idx++) {
     int start = starts_ptr[batch_idx];
     int weight_indices = indices_ptr[batch_idx];
@@ -736,8 +736,8 @@ __global__ void IBMM_2_4(
     const int4 *__restrict__ s_ptr = s + weight_indices * prob_n / 8;
     int4 *__restrict__ C_ptr = C + start * prob_n / 8;
     int *locks_ptr = locks + batch_idx * prob_k / 8;
-    
-    ibmm_marlin_2_4_internal<threads, 16, thread_n_blocks, thread_k_blocks,
+
+    ibmm_marlin_2_4_internal<threads, thread_m_blocks, thread_n_blocks, thread_k_blocks,
                              stages, group_blocks>(
         A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, count, prob_n, prob_k, locks_ptr);
   }
@@ -760,6 +760,22 @@ __global__ void IBMM_2_4(
         counts_ptr, prob_n, prob_m, prob_k, prob_r, locks);                  \
   }
 
+#define CALL_MM_2_4(THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS,  \
+                         GROUP_BLOCKS)                                       \
+  else if (mm_thread_m_blocks == THREAD_M_BLOCKS &&                             \
+           thread_n_blocks == THREAD_N_BLOCKS &&                             \
+           thread_k_blocks == THREAD_K_BLOCKS &&                             \
+           group_blocks == GROUP_BLOCKS) {                                   \
+    cudaFuncSetAttribute(ibmm_marlin_2_4_internal<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS, \
+                                  THREAD_K_BLOCKS, STAGES, GROUP_BLOCKS>,    \
+                         cudaFuncAttributeMaxDynamicSharedMemorySize,        \
+                         SHARED_MEM);                                        \
+    ibmm_marlin_2_4_internal<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS, THREAD_K_BLOCKS,     \
+             STAGES, GROUP_BLOCKS><<<blocks, THREADS, SHARED_MEM, stream>>>( \
+        A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, indices_ptr, starts_ptr,       \
+        counts_ptr, prob_n, prob_m, prob_k, prob_r, locks);                  \
+  }
+
 
 const int ERR_PROB_SHAPE = 1;
 const int ERR_KERN_SHAPE = 2;
@@ -777,13 +793,17 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
                          int prob_n, int prob_k, int prob_r, void *workspace,
                          int groupsize = -1, int dev = 0,
                          cudaStream_t stream = 0, int thread_k = -1,
-                         int thread_m = -1, int sms = -1, int max_par = 16, int max_count=-1) {
+                         int thread_m = -1, int sms = -1, int max_par = 16) {
+  // prob_n: how many requests
+  // prob_m: out feature
+  // prob_k: in  feature
   int tot_n = prob_n;
   int tot_n_blocks = ceildiv(tot_n, 16);
   int pad = 16 * tot_n_blocks - tot_n;
 
   if (sms == -1)
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
+  
   if (thread_k == -1 || thread_m == -1) {
     thread_k = 64;
     thread_m = 256;
@@ -835,19 +855,19 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
     }
     //                  BMxBNxBK, group
     CALL_IF_IBMM_2_4(8, 1, 4, -1)   // e.g., 16x128x128
-    CALL_IF_IBMM_2_4(8, 2, 4, -1)
-    CALL_IF_IBMM_2_4(8, 3, 4, -1)
-    CALL_IF_IBMM_2_4(8, 4, 4, -1)  // e.g., 16x128x128
+    // CALL_IF_IBMM_2_4(8, 2, 4, -1)
+    // CALL_IF_IBMM_2_4(8, 3, 4, -1)
+    // CALL_IF_IBMM_2_4(8, 4, 4, -1)  // e.g., 16x128x128
 
-    CALL_IF_IBMM_2_4(16, 1, 2, -1)  // e.g., 16x256x64
+    // CALL_IF_IBMM_2_4(16, 1, 2, -1)  // e.g., 16x256x64
     CALL_IF_IBMM_2_4(16, 2, 2, -1)  // e.g.. 32x256x64
-    CALL_IF_IBMM_2_4(16, 3, 2, -1)
-    CALL_IF_IBMM_2_4(16, 4, 2, -1)
+    // CALL_IF_IBMM_2_4(16, 3, 2, -1)
+    // CALL_IF_IBMM_2_4(16, 4, 2, -1)
 
-    CALL_IF_IBMM_2_4(32, 1, 1, -1)  // e.g., 16x256x64
-    CALL_IF_IBMM_2_4(32, 2, 1, -1)  // e.g.. 32x256x64
-    CALL_IF_IBMM_2_4(32, 3, 1, -1)
-    CALL_IF_IBMM_2_4(32, 4, 1, -1)
+    // CALL_IF_IBMM_2_4(32, 1, 1, -1)  // e.g., 16x256x64
+    // CALL_IF_IBMM_2_4(32, 2, 1, -1)  // e.g.. 32x256x64
+    // CALL_IF_IBMM_2_4(32, 3, 1, -1)
+    // CALL_IF_IBMM_2_4(32, 4, 1, -1)
     else ret = ERR_KERN_SHAPE;
     
     A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;

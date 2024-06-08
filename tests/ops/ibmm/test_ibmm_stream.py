@@ -19,8 +19,8 @@ if __name__=="__main__":
     distribution = "zipf:2"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
-    
     indices = torch.tensor([0] * num_requests, device=DEV, dtype=torch.int32)
+    
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1
     

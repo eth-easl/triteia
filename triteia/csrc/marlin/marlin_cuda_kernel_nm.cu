@@ -764,7 +764,7 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
   if (thread_k == -1 || thread_m == -1) {
     if (prob_n <= 16) {
-      // For small batchizes, better partioning is slightly more important than
+      // For small batchizes, better partitioning is slightly more important than
       // better compute utilization
       thread_k = 128;
       thread_m = 128;
