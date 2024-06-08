@@ -79,7 +79,6 @@ def ibmm_native(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=
     start = torch.cat((torch.tensor([first_nonnegative]).cuda(), (torch.cumsum(counts, dim=0)+ first_nonnegative)[:-1])).int()
     workspace = torch.zeros(len(unique_indices), y.shape[1] // 8, device=x.device)
     output = torch.zeros_like(y)
-    print(f"start: {start}, counts: {counts}")
     marlin.ibmm_2_4(
         x,
         qweight,

@@ -841,7 +841,6 @@ int marlin_cuda_bmm_2_4(const void *A, const void *B, const void *meta, void *C,
 
     A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
     C_ptr += 16 * thread_n_blocks * (prob_m / 8) * par;
-    // locks += 16 * thread_n_blocks * (prob_k / 8) * par;
   }
   return ret;
 };

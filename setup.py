@@ -43,11 +43,13 @@ setup(
                 "triteia/csrc/marlin/bmm_cuda_kernel_nm.cu",
                 "triteia/csrc/marlin/ibmm_cuda_kernel_nm.cu",
             ],
+            dlink=True,
             extra_compile_args={
                 "nvcc": [
-                    "-O3", "-arch=sm_86", "-arch=sm_80", "--ptxas-options=-v", "-lineinfo"
+                    "-O3", "-arch=sm_86", "--ptxas-options=-v", "-dc", "-lineinfo"
                 ]
             },
+            extra_link_args=["-lcudadevrt","-lcudart"],
         ),
     ],
     cmdclass={"build_ext": cpp_extension.BuildExtension},

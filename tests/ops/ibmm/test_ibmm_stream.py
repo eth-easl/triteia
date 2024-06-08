@@ -15,18 +15,20 @@ if __name__=="__main__":
     k = 1024 # in_feature
     m = 1024 # outfeature
     num_requests = 32
-    num_models = 1
-    distribution = "zipf:2"
+    num_models = 2
+    distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
-    # indices = torch.tensor([0] * 16, device=DEV, dtype=torch.int32)
-    # indices = torch.cat((indices, torch.tensor([1] * 16, device=DEV, dtype=torch.int32)))
-    indices = torch.tensor([0] * 32, device=DEV, dtype=torch.int32)
+    indices = torch.tensor([0] * 16, device=DEV, dtype=torch.int32)
+    indices = torch.cat((indices, torch.tensor([1] * 16, device=DEV, dtype=torch.int32)))
+    # indices = torch.tensor([0] * 32, device=DEV, dtype=torch.int32)
     
+    print(f"indices: {indices}")
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1
-    print(f"qs[0]: {qs[0][0][0:10]}")
-    # print(f"qs[1]: {qs[1][0][0:10]}")
+    print(f"qs: {qs[0][0][0:10]}")
+    print(f"qs: {qs[1][0][0:10]}")
+    
     x = torch.randn((num_requests, k), dtype=torch.float16, device=DEV)
     ref_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
     ref_output = ibmm_sparse_marlin( 
