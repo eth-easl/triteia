@@ -19,9 +19,9 @@ if __name__=="__main__":
     distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
-    indices = torch.tensor([0] * 16, device=DEV, dtype=torch.int32)
-    indices = torch.cat((indices, torch.tensor([1] * 16, device=DEV, dtype=torch.int32)))
-    indices = torch.tensor([0] * 32, device=DEV, dtype=torch.int32)
+    # indices = torch.tensor([0] * 16, device=DEV, dtype=torch.int32)
+    # indices = torch.cat((indices, torch.tensor([1] * 16, device=DEV, dtype=torch.int32)))
+    # indices = torch.tensor([0] * 16, device=DEV, dtype=torch.int32)
     
     print(f"indices: {indices}")
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
@@ -46,4 +46,8 @@ if __name__=="__main__":
             wrong_rows.append(i)
             print(f"ref_output: {ref_output[i]}")
             print(f"stream_output: {stream_output[i]}")
+    if len(wrong_rows) == 0:
+        print("All rows are correct")
+        print(f"ref_output: {ref_output}")
+        print(f"stream_output: {stream_output}")
     print(f"Wrong rows: {wrong_rows}")

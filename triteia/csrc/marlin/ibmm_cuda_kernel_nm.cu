@@ -31,23 +31,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line,
     if (abort) exit(code);
   }
 }
-#if defined(_WIN64) || defined(__LP64__)
-# define PTR_CONSTRAINT "l"
-#else
-# define PTR_CONSTRAINT "r"
-#endif
-
-__device__ int isShared(void *ptr)
-{
-    int res;
-    asm("{"
-        ".reg .pred p;\n\t"
-        "isspacep.shared p, %1;\n\t"
-        "selp.b32 %0, 1, 0, p;\n\t"
-        "}" :
-        "=r"(res): PTR_CONSTRAINT(ptr));
-    return res;
-}
 
 template <const int threads,          // number of threads in a threadblock
           const int thread_m_blocks,  // number of 16x16 blocks in the m
@@ -388,7 +371,6 @@ __global__ void ibmm_marlin_2_4_internal(
       ldsm4(frag_a[k % 2][i][1],
             &sh_a_stage[a_sh_rd_trans[1][k % b_sh_wr_iters][i]]);
     }
-
     int4 *sh_b_stage = sh_b + b_sh_stage * pipe;
     frag_b_quant[k % 2] = *reinterpret_cast<I4 *>(
         &sh_b_stage[b_sh_rd_delta * (k % b_sh_wr_iters) + b_sh_rd]);
@@ -476,7 +458,7 @@ __global__ void ibmm_marlin_2_4_internal(
       }
     }
   };
-  
+
   // Since multiple threadblocks may process parts of the same column slice, we
   // finally have to globally reduce over the results. As the striped partioning
   // minimizes the number of such reductions and our outputs are usually rather
@@ -641,18 +623,19 @@ __global__ void ibmm_marlin_2_4_internal(
       }
     }
   };
-  
+
   // Start global fetch and register load pipelines.
   auto start_pipes = [&]() {
 #pragma unroll
     for (int i = 0; i < stages - 1; i++) fetch_to_shared(i, i, i < slice_iters);
     zero_accums();
+
     wait_for_stage();
-    fetch_to_registers(0, 0);
+    fetch_to_registers(0, 0);  // this is problematic
     a_gl_rd += a_gl_rd_delta_o * (stages - 1);
   };
   start_pipes();
-  
+
   // Main loop.
   while (slice_iters) {
 // We unroll over both the global fetch and the register load pipeline to ensure
@@ -673,7 +656,7 @@ __global__ void ibmm_marlin_2_4_internal(
       if (slice_iters == 0) break;
     }
     a_gl_rd += a_gl_rd_delta_o * stages;
-    
+
     // Process results and, if necessary, proceed to the next column slice.
     // While this pattern may not be the most readable, other ways of writing
     // the loop seemed to noticeably worse performance after compliation.
@@ -687,7 +670,7 @@ __global__ void ibmm_marlin_2_4_internal(
         cp_async_fence();
       }
       thread_block_reduce();
-      
+
       if (group_blocks == -1 && last) {
         cp_async_wait<0>();
         __syncthreads();
@@ -708,7 +691,7 @@ __global__ void ibmm_marlin_2_4_internal(
       slice_col_par++;
       slice_col++;
       init_slice();
-      
+
       if (slice_iters) {
         a_gl_rd = a_gl_stride * (threadIdx.x / a_gl_rd_delta_o) +
                   (threadIdx.x % a_gl_rd_delta_o);
@@ -729,7 +712,6 @@ __global__ void ibmm_marlin_2_4_internal(
       }
     }
   }
-  
 }
 #define CALL_MM_2_4(THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS,         \
                     GROUP_BLOCKS)                                              \
@@ -740,9 +722,15 @@ __global__ void ibmm_marlin_2_4_internal(
     ibmm_marlin_2_4_internal<THREADS, THREAD_N_BLOCKS, THREAD_M_BLOCKS,        \
                              THREAD_K_BLOCKS, STAGES, GROUP_BLOCKS>            \
         <<<blocks, THREADS, SHARED_MEM, stream>>>(A_ptr, B_ptr, meta_ptr,      \
-                                                  C_ptr, s_ptr, prob_n, count, \
+                                                  C_ptr, s_ptr, count, prob_n, \
                                                   prob_k, locks_ptr);          \
   }
+
+#define Set_Max_SharedMemory(THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS) \
+  cudaFuncSetAttribute(                                                       \
+      ibmm_marlin_2_4_internal<THREADS, THREAD_M_BLOCKS, THREAD_N_BLOCKS,     \
+                               THREAD_K_BLOCKS, STAGES, -1>,                  \
+      cudaFuncAttributeMaxDynamicSharedMemorySize, SHARED_MEM);
 
 __global__ void IBMM_2_4(
     /**
@@ -765,66 +753,69 @@ __global__ void IBMM_2_4(
   // s: 16 bit, 8
   // meta: 16 bit, 8
   // workspace: int 32 [n, m/8]: m/8
-  // int blocks = sms;
-  // int group_blocks = -1;
+  int blocks = sms;
+  int group_blocks = -1;
 
-  // int start = starts_ptr[threadIdx.x];
-  // int count = counts_ptr[threadIdx.x];
-  // int weight_indices = indices_ptr[threadIdx.x];
-  // printf("start: %d, count: %d, weight_indices: %d\n", start, count,
-  //        weight_indices);
-  // const int4 *__restrict__ A_ptr = A + start * prob_k / 8;
-  // const int4 *__restrict__ B_ptr =
-  //     B + weight_indices * prob_k * prob_n / 16 / 4;
-  // const int4 *__restrict__ meta_ptr =
-  //     meta + weight_indices * prob_k * prob_n / 16 / 8;
-  // const int4 *__restrict__ s_ptr = s + weight_indices * prob_n / 8;
-  // int4 *__restrict__ C_ptr = C + start * prob_n / 8;
-  // int *locks_ptr = locks + threadIdx.x * prob_k / 8;
+  int start = starts_ptr[threadIdx.x];
+  int count = counts_ptr[threadIdx.x];
+  int weight_indices = indices_ptr[threadIdx.x];
+  const int4 *__restrict__ A_ptr = A + start * prob_k / 8;
+  const int4 *__restrict__ B_ptr =
+      B + weight_indices * prob_k * prob_n / 16 / 4;
+  const int4 *__restrict__ meta_ptr =
+      meta + weight_indices * prob_k * prob_n / 16 / 8;
+  const int4 *__restrict__ s_ptr = s + weight_indices * prob_n / 8;
+  int4 *__restrict__ C_ptr = C + start * prob_n / 8;
+  int *locks_ptr = locks + threadIdx.x * prob_k / 8;
 
-  // int thread_m = -1;
-  // int thread_k = -1;
-  // if (count <= 16) {
-  //   thread_k = 128;
-  //   thread_m = 128;
-  // } else if (count <= 256) {
-  //   thread_k = 64;
-  //   thread_m = 256;
-  // } else {
-  //   thread_k = 32;
-  //   thread_m = 512;
-  // }
-  // int thread_k_blocks = thread_k / 32;
-  // int thread_m_blocks = thread_m / 16;
-  // int tot_n = count;
-  // int tot_n_blocks = ceildiv(tot_n, 16);
-  // int pad = 16 * tot_n_blocks - tot_n;
-  // for (int i = 0; i < tot_n_blocks; i += 4) {
-  //   int thread_n_blocks = tot_n_blocks - i;
-  //   int par = 1;
-  //   if (thread_n_blocks > 4) {
-  //     par = (16 * thread_n_blocks - pad) / 64;
-  //     if (par > max_par) {
-  //       par = max_par;
-  //     }
-  //     count = 64 * par;
-  //     i += 4 * (par - 1);
-  //     thread_n_blocks = 4;
-  //   }
-  //   printf("thread_n_blocks: %d, thread_m_blocks: %d, thread_k_blocks: %d\n",
-  //          thread_n_blocks, thread_m_blocks, thread_k_blocks);
-    
-    ibmm_marlin_2_4_internal<THREADS, 2, 16, 2, STAGES, -1><<<sms, THREADS>>>(
-        A, B, meta, C, s, 256, 32, 256, locks);
+  int thread_m = -1;
+  int thread_k = -1;
+  if (count <= 16) {
+    thread_k = 128;
+    thread_m = 128;
+  } else if (count <= 256) {
+    thread_k = 64;
+    thread_m = 256;
+  } else {
+    thread_k = 32;
+    thread_m = 512;
+  }
 
+  int thread_k_blocks = thread_k / 32;
+  int thread_m_blocks = thread_m / 16;
+  int tot_n = count;
+  int tot_n_blocks = ceildiv(tot_n, 16);
+  int pad = 16 * tot_n_blocks - tot_n;
+  for (int i = 0; i < tot_n_blocks; i += 4) {
+    int thread_n_blocks = tot_n_blocks - i;
+    int par = 1;
+    if (thread_n_blocks > 4) {
+      par = (16 * thread_n_blocks - pad) / 64;
+      if (par > max_par) {
+        par = max_par;
+      }
+      count = 64 * par;
+      i += 4 * (par - 1);
+      thread_n_blocks = 4;
+    }
+    if (false) {}
+    CALL_MM_2_4(8,1,4,-1)
+    CALL_MM_2_4(8,2,4,-1)
+    CALL_MM_2_4(8,3,4,-1)
+    CALL_MM_2_4(8,4,4,-1)
+    CALL_MM_2_4(16,1,2,-1)
+    CALL_MM_2_4(16,2,2,-1)
+    CALL_MM_2_4(16,3,2,-1)
+    CALL_MM_2_4(16,4,2,-1)
+    else {
+      printf("Unsupported configuration!\n");
+    }
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) printf("Error: %s\n", cudaGetErrorString(err));
-
     __syncthreads();
-    printf("post sync threads...");
-    // A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
-    // C_ptr += 16 * thread_n_blocks * (prob_n / 8) * par;
-  // }
+    A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
+    C_ptr += 16 * thread_n_blocks * (prob_n / 8) * par;
+  }
 };
 
 /**
@@ -856,17 +847,22 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
   int *indices_ptr = (int *)indices;
   int *starts_ptr = (int *)starts;
   int *counts_ptr = (int *)counts;
+
   if (sms == -1)
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
+  Set_Max_SharedMemory(1, 8, 4)
+  Set_Max_SharedMemory(2, 8, 4)
+  Set_Max_SharedMemory(3, 8, 4)
+  Set_Max_SharedMemory(4, 8, 4)
+  Set_Max_SharedMemory(1, 16, 2)
+  Set_Max_SharedMemory(2, 16, 2)
+  Set_Max_SharedMemory(3, 16, 2)
+  Set_Max_SharedMemory(4, 16, 2)
   cudaFuncSetAttribute(IBMM_2_4, cudaFuncAttributeMaxDynamicSharedMemorySize,
                        SHARED_MEM);
-  cudaFuncSetAttribute(ibmm_marlin_2_4_internal<THREADS, 2, 16, 2, STAGES, -1>, cudaFuncAttributeMaxDynamicSharedMemorySize,
-                       SHARED_MEM);
-  IBMM_2_4<<<1, prob_r>>>(A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, indices_ptr,
-                          starts_ptr, counts_ptr, sms, stream, prob_n, prob_m,
-                          prob_k, prob_r, locks, max_par);
-  gpuErrchk(cudaPeekAtLastError());
-  gpuErrchk(cudaDeviceSynchronize());
+  IBMM_2_4<<<1, prob_r, sms, stream>>>(
+      A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, indices_ptr, starts_ptr, counts_ptr,
+      sms, stream, prob_n, prob_m, prob_k, prob_r, locks, max_par);
   return 0;
 }
 #endif

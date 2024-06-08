@@ -119,10 +119,10 @@ if __name__ == "__main__":
     import pandas as pd
     Ks = [4096]
     Ms = [4096]
-    num_requests = [64]
-    num_models = [2,4,8,16,32]
-    distribution = ['uniform']
-    trials = 1
+    num_requests = [100]
+    num_models = [2,4,8,16,32,64,100]
+    distribution = ['uniform', 'zipf:1.5', 'zipf:2.0']
+    trials = 5
     results = []
     for i in range(trials):
         for K in Ks:
@@ -133,5 +133,4 @@ if __name__ == "__main__":
                             res = benchmark(K, M, num_req, num_model, dist)
                             results.extend(res)
     results = pd.DataFrame(results)
-    print(results)
-    # results.to_csv(".local/benchmark_marlin.csv", index=False)
+    results.to_csv(".local/benchmark_marlin.csv", index=False)
