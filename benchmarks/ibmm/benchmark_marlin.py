@@ -18,7 +18,7 @@ def benchmark(K, M, num_reqs, num_models, dist):
     indices = generate_model_distribution(dist, num_reqs, num_models)
     # move all -1 to the beginning
     indices = torch.cat((indices[indices==-1], indices[indices!=-1]))
-    indices = torch.sort(indices)[0]
+    # indices = torch.sort(indices)[0]
     # group indices together, so same indices are consecutive
     # indices = torch.tensor([-1,-1, 3, 1]).to(DEV)
     # baseline1: fp16: 
@@ -103,7 +103,6 @@ def benchmark(K, M, num_reqs, num_models, dist):
         "func_fp16": fp16_time,
         "func_improved_v2": parallel_stream_time,
     })
-    
     # verify resutlts...
     if not torch.allclose(ref_output, parallel_stream_output):
         print("error: ref_output != parallel_stream_output")
@@ -117,12 +116,12 @@ def benchmark(K, M, num_reqs, num_models, dist):
     
 if __name__ == "__main__":
     import pandas as pd
-    Ks = [4096]
+    Ks = [2048]
     Ms = [4096]
-    num_requests = [100]
-    num_models = [2,4,8,16,32,64,100]
+    num_requests = [16]
+    num_models = [2,4,8,16]
     distribution = ['uniform', 'zipf:1.5', 'zipf:2.0']
-    trials = 5
+    trials = 1
     results = []
     for i in range(trials):
         for K in Ks:
@@ -133,4 +132,5 @@ if __name__ == "__main__":
                             res = benchmark(K, M, num_req, num_model, dist)
                             results.extend(res)
     results = pd.DataFrame(results)
+    print(results)
     results.to_csv(".local/benchmark_marlin.csv", index=False)
