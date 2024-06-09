@@ -726,10 +726,11 @@ __global__ void ibmm_marlin_2_4_internal(
                                                   prob_k, locks_ptr);          \
   }
 
-#define Set_Max_SharedMemory(THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS) \
-  cudaFuncSetAttribute(                                                       \
-      ibmm_marlin_2_4_internal<THREADS, THREAD_M_BLOCKS, THREAD_N_BLOCKS,     \
-                               THREAD_K_BLOCKS, STAGES, -1>,                  \
+#define Set_Max_SharedMemory(THREAD_M_BLOCKS, THREAD_N_BLOCKS,            \
+                             THREAD_K_BLOCKS)                             \
+  cudaFuncSetAttribute(                                                   \
+      ibmm_marlin_2_4_internal<THREADS, THREAD_M_BLOCKS, THREAD_N_BLOCKS, \
+                               THREAD_K_BLOCKS, STAGES, -1>,              \
       cudaFuncAttributeMaxDynamicSharedMemorySize, SHARED_MEM);
 
 __global__ void IBMM_2_4(
@@ -755,66 +756,68 @@ __global__ void IBMM_2_4(
   // workspace: int 32 [n, m/8]: m/8
   int blocks = sms;
   int group_blocks = -1;
+  for (int batch_id = 0; batch_id < prob_r; batch_id++) {
+    int start = starts_ptr[batch_id];
+    int count = counts_ptr[batch_id];
+    int weight_indices = indices_ptr[batch_id];
+    const int4 *__restrict__ A_ptr = A + start * prob_k / 8;
+    const int4 *__restrict__ B_ptr =
+        B + weight_indices * prob_k * prob_n / 16 / 4;
+    const int4 *__restrict__ meta_ptr =
+        meta + weight_indices * prob_k * prob_n / 16 / 8;
+    const int4 *__restrict__ s_ptr = s + weight_indices * prob_n / 8;
+    int4 *__restrict__ C_ptr = C + start * prob_n / 8;
+    int *locks_ptr = locks + batch_id * prob_k / 8;
+    int thread_m = -1;
+    int thread_k = -1;
+    if (count <= 16) {
+      thread_k = 128;
+      thread_m = 128;
+    } else if (count <= 256) {
+      thread_k = 64;
+      thread_m = 256;
+    } else {
+      thread_k = 32;
+      thread_m = 512;
+    }
 
-  int start = starts_ptr[threadIdx.x];
-  int count = counts_ptr[threadIdx.x];
-  int weight_indices = indices_ptr[threadIdx.x];
-  const int4 *__restrict__ A_ptr = A + start * prob_k / 8;
-  const int4 *__restrict__ B_ptr =
-      B + weight_indices * prob_k * prob_n / 16 / 4;
-  const int4 *__restrict__ meta_ptr =
-      meta + weight_indices * prob_k * prob_n / 16 / 8;
-  const int4 *__restrict__ s_ptr = s + weight_indices * prob_n / 8;
-  int4 *__restrict__ C_ptr = C + start * prob_n / 8;
-  int *locks_ptr = locks + threadIdx.x * prob_k / 8;
+    int thread_k_blocks = thread_k / 32;
+    int thread_m_blocks = thread_m / 16;
+    int tot_n = count;
+    int tot_n_blocks = ceildiv(tot_n, 16);
+    int pad = 16 * tot_n_blocks - tot_n;
 
-  int thread_m = -1;
-  int thread_k = -1;
-  if (count <= 16) {
-    thread_k = 128;
-    thread_m = 128;
-  } else if (count <= 256) {
-    thread_k = 64;
-    thread_m = 256;
-  } else {
-    thread_k = 32;
-    thread_m = 512;
-  }
-
-  int thread_k_blocks = thread_k / 32;
-  int thread_m_blocks = thread_m / 16;
-  int tot_n = count;
-  int tot_n_blocks = ceildiv(tot_n, 16);
-  int pad = 16 * tot_n_blocks - tot_n;
-  for (int i = 0; i < tot_n_blocks; i += 4) {
-    int thread_n_blocks = tot_n_blocks - i;
-    int par = 1;
-    if (thread_n_blocks > 4) {
-      par = (16 * thread_n_blocks - pad) / 64;
-      if (par > max_par) {
-        par = max_par;
+    for (int i = 0; i < tot_n_blocks; i += 4) {
+      int thread_n_blocks = tot_n_blocks - i;
+      int par = 1;
+      if (thread_n_blocks > 4) {
+        par = (16 * thread_n_blocks - pad) / 64;
+        if (par > max_par) {
+          par = max_par;
+        }
+        count = 64 * par;
+        i += 4 * (par - 1);
+        thread_n_blocks = 4;
       }
-      count = 64 * par;
-      i += 4 * (par - 1);
-      thread_n_blocks = 4;
+      if (false) {
+      }
+      CALL_MM_2_4(8, 1, 4, -1)
+      CALL_MM_2_4(8, 2, 4, -1)
+      CALL_MM_2_4(8, 3, 4, -1)
+      CALL_MM_2_4(8, 4, 4, -1)
+      CALL_MM_2_4(16, 1, 2, -1)
+      CALL_MM_2_4(16, 2, 2, -1)
+      CALL_MM_2_4(16, 3, 2, -1)
+      CALL_MM_2_4(16, 4, 2, -1)
+      else {
+        printf("Unsupported configuration!\n");
+      }
+      cudaError_t err = cudaGetLastError();
+      if (err != cudaSuccess) printf("Error: %s\n", cudaGetErrorString(err));
+      __syncthreads();
+      A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
+      C_ptr += 16 * thread_n_blocks * (prob_n / 8) * par;
     }
-    if (false) {}
-    CALL_MM_2_4(8,1,4,-1)
-    CALL_MM_2_4(8,2,4,-1)
-    CALL_MM_2_4(8,3,4,-1)
-    CALL_MM_2_4(8,4,4,-1)
-    CALL_MM_2_4(16,1,2,-1)
-    CALL_MM_2_4(16,2,2,-1)
-    CALL_MM_2_4(16,3,2,-1)
-    CALL_MM_2_4(16,4,2,-1)
-    else {
-      printf("Unsupported configuration!\n");
-    }
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) printf("Error: %s\n", cudaGetErrorString(err));
-    __syncthreads();
-    A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
-    C_ptr += 16 * thread_n_blocks * (prob_n / 8) * par;
   }
 };
 
@@ -850,17 +853,14 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
 
   if (sms == -1)
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
-  Set_Max_SharedMemory(1, 8, 4)
-  Set_Max_SharedMemory(2, 8, 4)
-  Set_Max_SharedMemory(3, 8, 4)
-  Set_Max_SharedMemory(4, 8, 4)
-  Set_Max_SharedMemory(1, 16, 2)
-  Set_Max_SharedMemory(2, 16, 2)
-  Set_Max_SharedMemory(3, 16, 2)
-  Set_Max_SharedMemory(4, 16, 2)
-  cudaFuncSetAttribute(IBMM_2_4, cudaFuncAttributeMaxDynamicSharedMemorySize,
-                       SHARED_MEM);
-  IBMM_2_4<<<1, prob_r, sms, stream>>>(
+  Set_Max_SharedMemory(1, 8, 4) Set_Max_SharedMemory(2, 8, 4)
+      Set_Max_SharedMemory(3, 8, 4) Set_Max_SharedMemory(4, 8, 4)
+          Set_Max_SharedMemory(1, 16, 2) Set_Max_SharedMemory(2, 16, 2)
+              Set_Max_SharedMemory(3, 16, 2) Set_Max_SharedMemory(4, 16, 2)
+                  cudaFuncSetAttribute(
+                      IBMM_2_4, cudaFuncAttributeMaxDynamicSharedMemorySize,
+                      SHARED_MEM);
+  IBMM_2_4<<<1, 1, sms, stream>>>(
       A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, indices_ptr, starts_ptr, counts_ptr,
       sms, stream, prob_n, prob_m, prob_k, prob_r, locks, max_par);
   return 0;

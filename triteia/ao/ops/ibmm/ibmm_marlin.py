@@ -60,7 +60,7 @@ def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_i
     y += output
     return y
 
-def ibmm_native(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None, base_weight=None, parallel=False):
+def ibmm_native(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None, base_weight=None):
     # if all indices are -1, return y
     if base_weight is not None:
         y = torch.matmul(x, base_weight.t())
