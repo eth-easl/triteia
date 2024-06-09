@@ -799,8 +799,6 @@ __global__ void IBMM_2_4(
         i += 4 * (par - 1);
         thread_n_blocks = 4;
       }
-      printf("thread_m_blocks: %d, thread_n_blocks: %d, thread_k_blocks: %d\n",
-             thread_m_blocks, thread_n_blocks, thread_k_blocks);
       if (false) {
       }
       CALL_MM_2_4(8, 1, 4, -1)
@@ -821,9 +819,7 @@ __global__ void IBMM_2_4(
       cudaError_t err = cudaGetLastError();
       if (err != cudaSuccess) printf("Error: %s\n", cudaGetErrorString(err));
 
-      printf("batch_id: %d, start: %d, count: %d\n", batch_id, start, count);
       __syncthreads();
-      printf("sync reads finished...\n");
       A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
       C_ptr += 16 * thread_n_blocks * (prob_n / 8) * par;
     }
