@@ -54,7 +54,6 @@ def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_i
         workspace,
         start,
         counts,
-        parallel=parallel
     )
     torch.cuda.synchronize()
     y += output
@@ -78,7 +77,7 @@ def ibmm_native(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=
         counts = counts[1:]
     start = torch.cat((torch.tensor([first_nonnegative]).cuda(), (torch.cumsum(counts, dim=0)+ first_nonnegative)[:-1])).int()
     workspace = torch.zeros(len(unique_indices), y.shape[1] // 8, device=x.device)
-    output = torch.zeros_like(y)
+    output = torch.zeros((x.shape[0], y.shape[1]), dtype=torch.float16, device=x.device)
     marlin.ibmm_2_4(
         x,
         qweight,
