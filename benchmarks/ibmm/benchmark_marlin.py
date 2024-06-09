@@ -116,7 +116,7 @@ def benchmark(K, M, num_reqs, num_models, dist):
     
 if __name__ == "__main__":
     import pandas as pd
-    Ks = [2048]
+    Ks = [4096]
     Ms = [4096]
     num_requests = [16]
     num_models = [2,4,8,16]

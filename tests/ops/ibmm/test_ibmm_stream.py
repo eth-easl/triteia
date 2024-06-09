@@ -14,15 +14,15 @@ if __name__=="__main__":
     torch.set_printoptions(precision=4, sci_mode=False, edgeitems=4)
     k = 2048 # in_feature
     m = 2048 # outfeature
-    num_requests = 4
-    num_models = 4
+    num_requests = 8
+    num_models = 6
     distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
     # indices = torch.tensor([0] * 16, device=DEV, dtype=torch.int32)
     # indices = torch.cat((indices, torch.tensor([1] * 16, device=DEV, dtype=torch.int32)))
     # indices = torch.tensor([0] * 16, device=DEV, dtype=torch.int32)
-    indices = torch.tensor([3,2,1,0], device=DEV, dtype=torch.int32)
+    indices = torch.tensor([-1,-1,3,5,2,4,0,1], device=DEV, dtype=torch.int32)
     print(f"indices: {indices}")
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1

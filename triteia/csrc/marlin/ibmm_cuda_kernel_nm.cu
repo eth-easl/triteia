@@ -809,6 +809,10 @@ __global__ void IBMM_2_4(
       CALL_MM_2_4(16, 2, 2, -1)
       CALL_MM_2_4(16, 3, 2, -1)
       CALL_MM_2_4(16, 4, 2, -1)
+      CALL_MM_2_4(32, 1, 1, -1)
+      CALL_MM_2_4(32, 2, 1, -1)
+      CALL_MM_2_4(32, 3, 1, -1)
+      CALL_MM_2_4(32, 4, 1, -1)
       else {
         printf("Unsupported configuration!\n");
       }
@@ -853,16 +857,25 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
 
   if (sms == -1)
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
-  Set_Max_SharedMemory(1, 8, 4) Set_Max_SharedMemory(2, 8, 4)
-      Set_Max_SharedMemory(3, 8, 4) Set_Max_SharedMemory(4, 8, 4)
-          Set_Max_SharedMemory(1, 16, 2) Set_Max_SharedMemory(2, 16, 2)
-              Set_Max_SharedMemory(3, 16, 2) Set_Max_SharedMemory(4, 16, 2)
-                  cudaFuncSetAttribute(
+  Set_Max_SharedMemory(1, 8, 4) 
+  Set_Max_SharedMemory(2, 8, 4)
+  Set_Max_SharedMemory(3, 8, 4) 
+  Set_Max_SharedMemory(4, 8, 4)
+  Set_Max_SharedMemory(1, 16, 2) 
+  Set_Max_SharedMemory(2, 16, 2)
+  Set_Max_SharedMemory(3, 16, 2) 
+  Set_Max_SharedMemory(4, 16, 2)
+  Set_Max_SharedMemory(1, 32, 1) 
+  Set_Max_SharedMemory(2, 32, 1)
+  Set_Max_SharedMemory(3, 32, 1) 
+  Set_Max_SharedMemory(4, 32, 1)
+  cudaFuncSetAttribute(
                       IBMM_2_4, cudaFuncAttributeMaxDynamicSharedMemorySize,
                       SHARED_MEM);
   IBMM_2_4<<<1, 1, sms, stream>>>(
       A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, indices_ptr, starts_ptr, counts_ptr,
       sms, stream, prob_n, prob_m, prob_k, prob_r, locks, max_par);
+  cudaDeviceSynchronize();
   return 0;
 }
 #endif
