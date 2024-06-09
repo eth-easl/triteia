@@ -90,6 +90,6 @@ def ibmm_native(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=
         start,
         counts,
     )
-    torch.cuda.synchronize()
     y += output
+    torch.cuda.synchronize()
     return y

@@ -17,8 +17,8 @@ def benchmark(K, M, num_reqs, num_models, dist):
     
     indices = generate_model_distribution(dist, num_reqs, num_models)
     # move all -1 to the beginning
-    indices = torch.cat((indices[indices==-1], indices[indices!=-1]))
-    # indices = torch.sort(indices)[0]
+    # indices = torch.cat((indices[indices==-1], indices[indices!=-1]))
+    indices = torch.sort(indices)[0]
     # group indices together, so same indices are consecutive
     # indices = torch.tensor([-1,-1, 3, 1]).to(DEV)
     # baseline1: fp16: 
@@ -116,10 +116,10 @@ def benchmark(K, M, num_reqs, num_models, dist):
     
 if __name__ == "__main__":
     import pandas as pd
-    Ks = [2048]
+    Ks = [4096]
     Ms = [4096]
-    num_requests = [16]
-    num_models = [2,4,8,16]
+    num_requests = [64]
+    num_models = [2,4,8,16,32]
     distribution = ['uniform', 'zipf:1.5', 'zipf:2.0']
     trials = 1
     results = []

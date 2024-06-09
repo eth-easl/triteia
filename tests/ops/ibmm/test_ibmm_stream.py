@@ -12,9 +12,9 @@ if __name__=="__main__":
     torch.manual_seed(0)
     np.random.seed(0)
     torch.set_printoptions(precision=4, sci_mode=False, edgeitems=4)
-    k = 2048 # in_feature
-    m = 2048 # outfeature
-    num_requests = 4
+    k = 5504 # in_feature
+    m = 4096 # outfeature
+    num_requests = 5
     num_models = 4
     distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
@@ -22,7 +22,8 @@ if __name__=="__main__":
     # indices = torch.tensor([0] * 16, device=DEV, dtype=torch.int32)
     # indices = torch.cat((indices, torch.tensor([1] * 16, device=DEV, dtype=torch.int32)))
     # indices = torch.tensor([0] * 16, device=DEV, dtype=torch.int32)
-    indices = torch.tensor([3,2,1,0], device=DEV, dtype=torch.int32)
+    indices = torch.tensor([0,1,2,3,3], device=DEV, dtype=torch.int32)
+    
     print(f"indices: {indices}")
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1

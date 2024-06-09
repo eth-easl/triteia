@@ -647,7 +647,6 @@ __global__ void ibmm_marlin_2_4_internal(
       fetch_to_shared((pipe + stages - 1) % stages, pipe,
                       slice_iters >= stages);
       wait_for_stage();
-
       fetch_to_registers(pipe + 1, (pipe + 1) % stages);
       matmul(pipe);
 
@@ -756,6 +755,7 @@ __global__ void IBMM_2_4(
   // workspace: int 32 [n, m/8]: m/8
   int blocks = sms;
   int group_blocks = -1;
+  
   for (int batch_id = 0; batch_id < prob_r; batch_id++) {
     int start = starts_ptr[batch_id];
     int count = counts_ptr[batch_id];
@@ -767,7 +767,7 @@ __global__ void IBMM_2_4(
         meta + weight_indices * prob_k * prob_n / 16 / 8;
     const int4 *__restrict__ s_ptr = s + weight_indices * prob_n / 8;
     int4 *__restrict__ C_ptr = C + start * prob_n / 8;
-    int *locks_ptr = locks + batch_id * prob_k / 8;
+    int *locks_ptr = locks + batch_id * prob_n / 8;
     int thread_m = -1;
     int thread_k = -1;
     if (count <= 16) {
@@ -799,6 +799,8 @@ __global__ void IBMM_2_4(
         i += 4 * (par - 1);
         thread_n_blocks = 4;
       }
+      printf("thread_m_blocks: %d, thread_n_blocks: %d, thread_k_blocks: %d\n",
+             thread_m_blocks, thread_n_blocks, thread_k_blocks);
       if (false) {
       }
       CALL_MM_2_4(8, 1, 4, -1)
@@ -814,7 +816,10 @@ __global__ void IBMM_2_4(
       }
       cudaError_t err = cudaGetLastError();
       if (err != cudaSuccess) printf("Error: %s\n", cudaGetErrorString(err));
+
+      printf("batch_id: %d, start: %d, count: %d\n", batch_id, start, count);
       __syncthreads();
+      printf("sync reads finished...\n");
       A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
       C_ptr += 16 * thread_n_blocks * (prob_n / 8) * par;
     }
