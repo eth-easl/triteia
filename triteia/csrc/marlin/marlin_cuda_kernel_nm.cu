@@ -767,12 +767,9 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
       // better compute utilization
       thread_k = 128;
       thread_m = 128;
-    } else if (prob_n<=256) {
+    } else {
       thread_k = 64;
       thread_m = 256;
-    } else {
-      thread_k = 32;
-      thread_m = 512;
     }
   }
 
@@ -780,8 +777,10 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
   int thread_m_blocks = thread_m / 16;
   int group_blocks = (groupsize == -1) ? -1 : groupsize / 16;
   int blocks = sms;
+
   if (prob_m % thread_m != 0 || prob_k % thread_k != 0 ||
       (group_blocks != -1 && (prob_k / 2) % group_blocks != 0))
+
     return ERR_PROB_SHAPE;
   if (prob_m == 0 || prob_n == 0 || prob_k == 0)
     return 0;
