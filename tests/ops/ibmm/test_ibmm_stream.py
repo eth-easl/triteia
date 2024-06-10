@@ -13,25 +13,25 @@ if __name__=="__main__":
     np.random.seed(0)
     torch.set_printoptions(precision=4, sci_mode=False, edgeitems=4)
     k = 4096 # in_feature
-    m = 11008 # outfeature
-    num_requests = 660
-    num_models = 2
+    m = 22016 # outfeature
+    num_requests = 611
+    num_models = 8
     distribution = "uniform"
     indices = generate_model_distribution(distribution, num_requests, num_models)
     indices = torch.sort(indices)[0]
-    indices = torch.tensor([1] * num_requests, device=DEV, dtype=torch.int32)
+    # indices = torch.tensor([0]*11 + [1]*(num_requests-11), device=DEV, dtype=torch.int32)
     
-    print(f"indices: {indices}")
     fp16, qs, scales, metas = generate_2_4_pruned(num_models, m, k)
     groupsize = -1
     # print(f"qs: {qs[1][0][0:10]}")
     
     x = torch.randn((num_requests, k), dtype=torch.float16, device=DEV)
     ref_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
-    ref_output = ibmm_sparse_marlin( 
+    ref_output = ibmm_sparse_marlin_stream( 
         4, indices, metas, ref_output, x, qs, scales
     )
     stream_output = torch.zeros((num_requests, m), dtype=torch.float16, device=DEV)
+    print("calling...")
     stream_output = ibmm_native(
         4, indices, metas, stream_output, x, qs, scales
     )
@@ -41,8 +41,9 @@ if __name__=="__main__":
         if not torch.allclose(ref_output[i], stream_output[i]):
             print(f"Error at row {i}, indices={indices[i]}")
             wrong_rows.append(i)
-            print(f"ref_output: {ref_output[i]}")
-            print(f"stream_output: {stream_output[i]}")
+            # print(f"ref_output: {ref_output[i]}")
+            # print(f"stream_output: {stream_output[i]}")
+            print(f"max diff: {torch.max(torch.abs(ref_output[i] - stream_output[i]))}")
     if len(wrong_rows) == 0:
         print("All rows are correct")
         print(f"ref_output: {ref_output}")

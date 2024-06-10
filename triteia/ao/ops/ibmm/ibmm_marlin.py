@@ -61,6 +61,11 @@ def ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_i
 
 def ibmm_native(bitwidth, indices,metas, y, x, qweight, scale, g_idx=None, bias=None, base_weight=None):
     # if all indices are -1, return y
+    if x.shape[0] // len(qweight) > 64:
+        print("Too many requests, using naive version")
+        # if the number of requests is too large, use the naive version
+        # it should be as good
+        return ibmm_sparse_marlin_stream(bitwidth, indices,metas, y, x, qweight, scale, g_idx, bias, base_weight)
     if base_weight is not None:
         y = torch.matmul(x, base_weight.t())
     if torch.all(indices == -1):

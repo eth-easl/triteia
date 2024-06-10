@@ -790,7 +790,6 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
   int4 *C_ptr = (int4 *)C;
   const int4 *s_ptr = (const int4 *)s;
 
-  int cols = prob_m / thread_m;
   int *locks = (int *)workspace;
   int ret = 0;
   for (int i = 0; i < tot_n_blocks; i += 4) {

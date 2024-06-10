@@ -773,12 +773,9 @@ __global__ void IBMM_2_4(
     if (count <= 16) {
       thread_k = 128;
       thread_m = 128;
-    } else if (count <= 256) {
+    } else {
       thread_k = 64;
       thread_m = 256;
-    } else {
-      thread_k = 32;
-      thread_m = 512;
     }
 
     int thread_k_blocks = thread_k / 32;
@@ -818,12 +815,12 @@ __global__ void IBMM_2_4(
       }
       cudaError_t err = cudaGetLastError();
       if (err != cudaSuccess) printf("Error: %s\n", cudaGetErrorString(err));
-
       __syncthreads();
       A_ptr += 16 * thread_n_blocks * (prob_k / 8) * par;
       C_ptr += 16 * thread_n_blocks * (prob_n / 8) * par;
     }
   }
+  __syncthreads();
 };
 
 /**
