@@ -876,7 +876,6 @@ int marlin_cuda_ibmm_2_4(const void *A, const void *B, const void *meta,
   IBMM_2_4<<<1, 1, sms, stream>>>(
       A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, indices_ptr, starts_ptr, counts_ptr,
       sms, stream, prob_n, prob_m, prob_k, prob_r, locks, max_par);
-  cudaDeviceSynchronize();
   return 0;
 }
 #endif
