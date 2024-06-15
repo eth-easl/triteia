@@ -6,7 +6,7 @@ from triteia.ao.ops.ibmm.ibmm_fp16 import ibmm_fp16
 
 DEV="cuda:0"
 
-def benchmark(K, M, num_reqs, num_models, dist):
+def benchmark(run_id, K, M, num_reqs, num_models, dist):
     result = []
     fp16, qs, scales, metas = generate_2_4_pruned(
         num_models,
@@ -43,7 +43,7 @@ def benchmark(K, M, num_reqs, num_models, dist):
         4, indices, metas, None, x, qs, scales, base_weight=base_weight
     )
     # actual measure
-    torch.cuda.nvtx.range_push("ibmm_sparse_marlin naive")
+    torch.cuda.nvtx.range_push(f"{run_id} for-loop {num_models}x{M}x{K}")
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     start.record()
@@ -83,7 +83,7 @@ def benchmark(K, M, num_reqs, num_models, dist):
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     parallel_stream_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
-    torch.cuda.nvtx.range_push("ibmm_sparse_marlin_stream parallel=True")
+    torch.cuda.nvtx.range_push(f"{run_id} ibmm_native {num_models}x{M}x{K}")
     start.record()
     parallel_stream_output = ibmm_native(
         4, indices, metas, parallel_stream_output, x, qs, scales, base_weight=base_weight
@@ -116,12 +116,12 @@ def benchmark(K, M, num_reqs, num_models, dist):
     
 if __name__ == "__main__":
     import pandas as pd
-    Ks = [4096]
-    Ms = [4096]
+    Ks = [2048, 4096]
+    Ms = [2048, 4096]
     num_requests = [64]
-    num_models = [2,4,8,16,32]
-    distribution = ['uniform', 'zipf:1.5', 'zipf:2.0']
-    trials = 1
+    num_models = [16, 64]
+    distribution = ['uniform']
+    trials = 5
     results = []
     for i in range(trials):
         for K in Ks:
@@ -129,7 +129,7 @@ if __name__ == "__main__":
                 for num_req in num_requests:
                     for num_model in num_models:
                         for dist in distribution:
-                            res = benchmark(K, M, num_req, num_model, dist)
+                            res = benchmark(i, K, M, num_req, num_model, dist)
                             results.extend(res)
     results = pd.DataFrame(results)
     print(results)
