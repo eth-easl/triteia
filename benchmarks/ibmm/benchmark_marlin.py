@@ -16,7 +16,7 @@ def benchmark(run_id, K, M, num_reqs, num_models, dist):
     )
     base_weight = fp16[0]
     x = torch.randn((num_reqs, K), dtype=torch.float16, device=DEV)
-    
+
     indices = generate_model_distribution(dist, num_reqs, num_models)
     # move all -1 to the beginning
     # indices = torch.cat((indices[indices==-1], indices[indices!=-1]))
@@ -32,7 +32,7 @@ def benchmark(run_id, K, M, num_reqs, num_models, dist):
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     fp16_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
-    torch.cuda.nvtx.range_push("ibmm fp16")
+    torch.cuda.nvtx.range_push(f"{run_id} ibmm_fp16_for {num_models}x{M}x{K}")
     start.record()
     fp16_output = ibmm_fp16(indices, None, fp16_output, x, fp16, None)
     end.record()
@@ -46,10 +46,11 @@ def benchmark(run_id, K, M, num_reqs, num_models, dist):
     fp16_t = fp16.transpose(1,2).contiguous()
     ibmm_fp16_bmm(indices, None, fp16_bmm_output, x, fp16_t)
     # actual measure
+    # https://discuss.pytorch.org/t/how-to-measure-time-in-pytorch/26964
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     fp16_bmm_output = torch.zeros((num_reqs, M), dtype=torch.float16, device=DEV)
-    torch.cuda.nvtx.range_push("ibmm fp16_bmm")
+    torch.cuda.nvtx.range_push(f"{run_id} ibmm_fp16_bmm {num_models}x{M}x{K}")
     start.record()
     fp16_bmm_output = ibmm_fp16_bmm(indices, None, fp16_bmm_output, x, fp16_t)
     end.record()
@@ -57,7 +58,7 @@ def benchmark(run_id, K, M, num_reqs, num_models, dist):
     torch.cuda.nvtx.range_pop()
     fp16_bmm_time = start.elapsed_time(end)
     
-    # baseline2: for loop
+    # baseline3: for loop
     # warmup here
     ibmm_sparse_marlin(
         4, indices, metas, None, x, qs, scales, base_weight=base_weight
@@ -142,21 +143,20 @@ if __name__ == "__main__":
     import pandas as pd
     torch.manual_seed(0)
     np.random.seed(0)
-    Ks = [4096]
-    Ms = [4096]
+    Ks = [2048, 4096]
+    Ms = [2048, 4096]
     num_requests = [100]
-    num_models = [2, 4, 8, 16, 32, 64]
+    num_models = [16, 64]
     distribution = ['uniform']
-    trials = 1
+    trials = 5
     results = []
     for i in range(trials):
-        for K in Ks:
-            for M in Ms:
-                for num_req in num_requests:
-                    for num_model in num_models:
-                        for dist in distribution:
-                            res = benchmark(i, K, M, num_req, num_model, dist)
-                            results.extend(res)
+        for M, K in zip(Ms, Ks):
+            for num_req in num_requests:
+                for num_model in num_models:
+                    for dist in distribution:
+                        res = benchmark(i, K, M, num_req, num_model, dist)
+                        results.extend(res)
     results = pd.DataFrame(results)
     print(results)
     results.to_csv(".local/benchmark_marlin.csv", index=False)

@@ -9,7 +9,7 @@ import seaborn as sns
 set_matplotlib_style()
 cmp = sns.color_palette("tab10")
 sns.set_style("ticks")
-trials = 5
+trials = 1
 matrix_sizes = ["2k", "4k"]
 num_models = [16, 64]
 distribution = "uniform"
@@ -17,12 +17,15 @@ df = []
 for id in range(0, trials):
     for ms in matrix_sizes:
         for num_model in num_models:
-            with open(f".local/run_2/{ms}_native_{num_model}_{id}.json", "r") as fp:
+            with open(f".local/run_3/{ms}_native_{num_model}_{id}.json", "r") as fp:
                 ibmm_data = json.load(fp)
-            with open(f".local/run_2/{ms}_forloop_{num_model}_{id}.json", "r") as fp:
+            with open(f".local/run_3/{ms}_forloop_{num_model}_{id}.json", "r") as fp:
+                naive_data = json.load(fp)
+            with open(f".local/run_3/{ms}_forloop_{num_model}_{id}.json", "r") as fp:
                 naive_data = json.load(fp)
             naive_total_time = sum([x["TAvg (ns)"] * x["Count"] for x in naive_data])
             ibmm_total_time = sum([x["TAvg (ns)"] * x["Count"] for x in ibmm_data])
+            
             naive_kernel_calls = [
                 x for x in naive_data if "marlin::Marlin_2_4" in x["Kernel Name"]
             ]

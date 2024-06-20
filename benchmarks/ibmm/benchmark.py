@@ -56,8 +56,8 @@ def _bench_fp16(indices, y, x, weight):
     return (end-start) * 1000
 
 def benchmark():
-    Ns = [4096]
-    Ks = [4096]
+    Ns = [2048, 4096]
+    Ks = [2048, 4096]
     bitwidth = 4
     max_num_models = [4]
     num_reqs = 100
