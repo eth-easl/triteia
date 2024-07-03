@@ -14,6 +14,7 @@ def timing_function(func, flops_func, kwargs, repeats=1):
     elapseds = []
     
     for i in range(repeats):
+        torch.cuda.synchronize()
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         start.record()

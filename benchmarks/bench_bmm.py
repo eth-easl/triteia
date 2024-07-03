@@ -11,7 +11,7 @@ def benchmark(b, m,n,k, dev="cuda", groupsize=-1):
                 b, m, k, groupsize=groupsize, device=dev
     )
     def fp16_func(x, weight_ref):
-        return torch.matmul(x, weight_ref)
+        return torch.bmm(x, weight_ref)
     def w4_2_4_forloop(qweight, x, meta, scale):
         return bmm_4bit_2_4_forloop(qweight, x, meta, scale)
     def w4_2_4_native(qweight, x, meta, scale):

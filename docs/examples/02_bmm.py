@@ -16,7 +16,6 @@ x = torch.randn((b,1,  p), dtype=torch.float16, device=dev)
 weight_ref, qweight, scale, meta = gen_batched_sparse_quant4_NT(
     b, m, p, groupsize=groupsize, device=dev
 )
-# weight_ref = weight_ref.permute(0, 2, 1)
 fp16_output = torch.bmm(x, weight_ref)
 forloop_output = bmm_4bit_2_4_forloop(qweight, x, meta, scale)
 native_output = bmm_4bit_2_4(qweight, x, meta, scale)
