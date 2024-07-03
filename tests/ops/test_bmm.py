@@ -7,6 +7,7 @@ from triteia.python.ops import (
 )
 from triteia.python.configs.models.llama import llama_shapes
 
+
 class TestMatmulOp(unittest.TestCase):
     def run_problem(self, b: int, m: int, n: int, k: int, groupsize=-1, dev="cuda"):
         try:
@@ -38,16 +39,27 @@ class TestMatmulOp(unittest.TestCase):
         self.run_problem(16, 256, 16, 512, groupsize=-1)
         self.run_problem(16, 512, 16, 256, groupsize=-1)
         self.run_problem(8, 256, 16, 256, groupsize=-1)
+        self.run_problem(8, 512, 16, 256, groupsize=-1)
+        self.run_problem(8, 256, 16, 512, groupsize=-1)
+        self.run_problem(8, 512, 16, 256, groupsize=-1)
         self.run_problem(4, 512, 16, 512, groupsize=-1)
         self.run_problem(4, 256, 16, 512, groupsize=-1)
-        self.run_problem(8, 512, 16, 256, groupsize=-1)
-    
+        self.run_problem(4, 256, 16, 512, groupsize=-1)
+        self.run_problem(4, 512, 16, 256, groupsize=-1)
+
     def test_llama(self):
-        bszs = [4, 8, 16]
+        bszs = [1, 2, 4, 8, 16]
         for _, layers in llama_shapes.items():
             for layer in layers:
                 for bsz in bszs:
-                    self.run_problem(bsz, layer[1], 16, layer[0])        
+                    self.run_problem(bsz, layer[1], 16, layer[0])
+
+    def test_llama_uneven(self):
+        bszs = [3, 5, 6, 7, 9, 10, 11]
+        for _, layers in llama_shapes.items():
+            for layer in layers:
+                for bsz in bszs:
+                    self.run_problem(bsz, layer[1], 16, layer[0])
 
 
 if __name__ == "__main__":
