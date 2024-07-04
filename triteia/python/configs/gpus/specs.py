@@ -6,7 +6,7 @@ nvidia_rtx_3090 = {
     'name': 'NVIDIA GeForce RTX 3090',
     'compute_capability': '8.6',
     'memory': 24, # in GB
-    'bandwidth': 936.2,
+    'bandwidth': 936.2, # in GB/s
     'fp16_tflops': 71,
     'fp32_tflops': 35.58,
 }

@@ -20,8 +20,6 @@ struct SBMMProblemVisitor {
       : problem_idx(problem_idx_), problem_start(problem_start_) {}
 };
 
-
-
 }  // namespace kernel
 }  // namespace gemm
 }  // namespace cutlass

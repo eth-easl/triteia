@@ -7,9 +7,9 @@ from triteia.python.ops import (
 
 dev = "cuda"
 b=16
-n=1
-m=256
-p=512
+n=16
+m=35328
+p=6656
 groupsize = -1
 
 x = torch.randn((b,1,  p), dtype=torch.float16, device=dev)
