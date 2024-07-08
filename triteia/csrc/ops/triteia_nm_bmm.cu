@@ -718,9 +718,8 @@ __global__ void BMM_2_4(
     const int4 *__restrict__ s, cudaStream_t stream, int blocks, int prob_m,
     int prob_n, int prob_k, int *locks, int max_par) {
   // 1 int4 pointer = 4 x 32 bit
-  // B: 32 bit packed, 4
-
   // A: 16 bit, 8
+  // B: 32 bit packed, 4
   // C: 16 bit, 8
   // s: 16 bit, 8
   // meta: 16 bit, 8
@@ -730,7 +729,12 @@ __global__ void BMM_2_4(
     const int4 *__restrict__ B_ptr = B + batch_idx * prob_k * prob_n / 16 / 4;
     const int4 *__restrict__ meta_ptr =
         meta + batch_idx * prob_k * prob_n / 16 / 8;
-
+    if (batch_idx==10 || batch_idx == 9)  {
+      // print value at meta_ptr
+      auto up = meta_ptr->x >> 16;
+      auto low = meta_ptr->x & 0xFFFF;
+      printf("batch_idx: %d, meta_ptr: %d, %d\n", batch_idx, low, up);
+    }
     const int4 *__restrict__ s_ptr = s + batch_idx * prob_n / 8;
     int4 *__restrict__ C_ptr = C + batch_idx * prob_n / 8;
     int *locks_ptr = locks + batch_idx * prob_n;
@@ -758,13 +762,6 @@ __global__ void BMM_2_4(
         prob_k, locks, max_par);                                              \
   }
 
-#define Set_Max_SharedMemory(THREAD_M_BLOCKS, THREAD_N_BLOCKS,      \
-                             THREAD_K_BLOCKS)                       \
-  cudaFuncSetAttribute(                                             \
-      marlin::Marlin_2_4<THREADS, THREAD_M_BLOCKS, THREAD_N_BLOCKS, \
-                         THREAD_K_BLOCKS, STAGES, -1>,              \
-      cudaFuncAttributeMaxDynamicSharedMemorySize, SHARED_MEM);
-
 int triteia_cuda_bmm_2_4(const void *A, const void *B, const void *meta,
                          void *C, void *s, int prob_m, int prob_n, int prob_k,
                          void *workspace, int groupsize = -1, int dev = 0,
@@ -776,8 +773,15 @@ int triteia_cuda_bmm_2_4(const void *A, const void *B, const void *meta,
   if (sms == -1)
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
   if (thread_k == -1 || thread_m == -1) {
-    thread_m = 128;
-    thread_k = 128;
+    if (prob_n <= 16) {
+      // For small batchizes, better partioning is slightly more important than
+      // better compute utilization
+      thread_k = 128;
+      thread_m = 128;
+    } else {
+      thread_k = 64;
+      thread_m = 256;
+    }
   }
   int thread_k_blocks = thread_k / 32;  // 2:4 version with m16n8k32 instruction
   int thread_m_blocks = thread_m / 16;

@@ -55,7 +55,7 @@ void bmm_2_4(const torch::Tensor &A, const torch::Tensor &B,
              const torch::Tensor &meta, torch::Tensor &C,
              const torch::Tensor &s, torch::Tensor &workspace,
              int thread_k = -1, int thread_m = -1, int sms = -1,
-             int max_par = 8) {
+             int max_par = 16) {
   /**
    * A:    [n, k]: n: #reqs, k: in features
    * B:    [n, k/16, 2*m]: n: #reqs, k: in features, m: out features

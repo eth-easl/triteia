@@ -12,3 +12,4 @@ pytest
 pytest-cov
 pytest-html
 pytest-console-scripts
+buildkite-test-collector

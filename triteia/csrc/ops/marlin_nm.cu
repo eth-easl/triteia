@@ -4,21 +4,22 @@
 #include <cuda.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
+
 #include <iostream>
-#include "marlin.cuh"
 
 #include "common/base.h"
 #include "common/mem.h"
 #include "common/mma.h"
+#include "marlin.cuh"
 
 namespace marlin {
 // 8 warps are a good choice since every SM has 4 schedulers and having more
 // than 1 warp per schedule allows some more latency hiding. At the same time,
 // we want relatively few warps to have many registers per warp and small tiles.
 const int THREADS = 256;
-const int STAGES = 4; // 4 pipeline stages fit into shared memory
+const int STAGES = 4;  // 4 pipeline stages fit into shared memory
 const int SHARED_MEM =
-    96 * 1024; // max shared memory on compute capability 8.6 (< 8.0)
+    96 * 1024;  // max shared memory on compute capability 8.6 (< 8.0)
 
 #define CALL_IF_2_4(THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS,         \
                     GROUP_BLOCKS)                                              \
@@ -62,15 +63,14 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
     }
   }
 
-  int thread_k_blocks = thread_k / 32; // 2:4 version with m16n8k32 instruction
+  int thread_k_blocks = thread_k / 32;  // 2:4 version with m16n8k32 instruction
   int thread_m_blocks = thread_m / 16;
   int group_blocks = (groupsize == -1) ? -1 : groupsize / 16;
   int blocks = sms;
   if (prob_m % thread_m != 0 || prob_k % thread_k != 0 ||
       (group_blocks != -1 && (prob_k / 2) % group_blocks != 0))
     return ERR_PROB_SHAPE;
-  if (prob_m == 0 || prob_n == 0 || prob_k == 0)
-    return 0;
+  if (prob_m == 0 || prob_n == 0 || prob_k == 0) return 0;
   const int4 *A_ptr = (const int4 *)A;
   const int4 *B_ptr = (const int4 *)B;
   const int4 *meta_ptr = (const int4 *)meta;
@@ -88,8 +88,7 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
       // Note that parallel > 1 currently only works for inputs without any
       // padding
       par = (16 * thread_n_blocks - pad) / 64;
-      if (par > max_par)
-        par = max_par;
+      if (par > max_par) par = max_par;
       prob_n = 64 * par;
       i += 4 * (par - 1);
       thread_n_blocks = 4;
@@ -99,12 +98,12 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
     // seemed useful (in terms of performance) in our testing, however many more
     // are, in principle, possible.
     if (false) {
-    }                         //         BMxBNxBK,   group
-    CALL_IF_2_4(8, 1, 4, -1)  // e.g., 16x128x128
-    CALL_IF_2_4(8, 1, 4, 4)   // e.g., 16x128x128, 64
-    CALL_IF_2_4(16, 1, 2, -1) // e.g., 16x256x64
-    CALL_IF_2_4(16, 1, 2, 4)  // e.g., 16x256x64,  64
-    CALL_IF_2_4(16, 2, 2, -1) // e.g.. 32x256x64
+    }  //         BMxBNxBK,   group
+    CALL_IF_2_4(8, 1, 4, -1)   // e.g., 16x128x128
+    CALL_IF_2_4(8, 1, 4, 4)    // e.g., 16x128x128, 64
+    CALL_IF_2_4(16, 1, 2, -1)  // e.g., 16x256x64
+    CALL_IF_2_4(16, 1, 2, 4)   // e.g., 16x256x64,  64
+    CALL_IF_2_4(16, 2, 2, -1)  // e.g.. 32x256x64
     CALL_IF_2_4(16, 2, 2, 4)
     CALL_IF_2_4(16, 3, 2, -1)
     CALL_IF_2_4(16, 3, 2, 4)
@@ -118,5 +117,5 @@ int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
 
   return ret;
 }
-#endif 
+#endif
 }
