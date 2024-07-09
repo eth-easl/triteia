@@ -72,8 +72,7 @@ void bmm_2_4(const torch::Tensor &A, const torch::Tensor &B,
   if (groupsize != -1 && groupsize * s.size(1) != prob_k)
     AT_ERROR("k=", prob_k, " not compatible with ", s.size(0), " groups.");
   if (workspace.numel() < prob_n * prob_m / 128 * max_par)
-    AT_ERROR("workspace must be of size at least ", prob_n * prob_m / 128 * max_par,
-             ".");
+    AT_ERROR("workspace must be of size at least ", prob_n * prob_m / 128 * max_par, ".");
   int dev = A.get_device();
   // print meta size
   int err = triteia_cuda_bmm_2_4(

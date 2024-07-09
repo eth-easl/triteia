@@ -24,6 +24,7 @@ for i in range(b):
     print(f"meta{i}: {meta[i]}")
     print(f"qweight{i}: {qweight[i]}")
 # find the index of 14547
+torch.cuda.synchronize()
 fp16_output = torch.bmm(x, weight_ref)
 forloop_output = bmm_4bit_2_4_forloop(qweight, x, meta, scale)
 native_output = bmm_4bit_2_4(qweight, x, meta, scale)

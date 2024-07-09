@@ -726,19 +726,9 @@ __global__ void BMM_2_4(
   // locks: 32 bit
   for (int batch_idx = 0; batch_idx < prob_m; batch_idx++) {
     const int4 *__restrict__ A_ptr = A + batch_idx * prob_k / 8;
-    const int4 *__restrict__ B_ptr = B + batch_idx * prob_k * prob_n / 16 / 4;
+    const int4 *__restrict__ B_ptr = B + batch_idx *  (prob_n / 16) *(prob_k / 4);
     const int4 *__restrict__ meta_ptr =
-        meta + batch_idx * prob_k * prob_n / 16 / 8;
-
-    const int4 *__restrict__ meta_minus_one_ptr = meta_ptr - 1;
-    if (batch_idx==10 || batch_idx == 9)  {
-      // print value at meta_ptr
-      auto up = meta_ptr->x >> 16;
-      auto low = meta_ptr->x & 0xFFFF;
-      auto up_minus_one = meta_minus_one_ptr->w >> 16;
-      auto low_minus_one = meta_minus_one_ptr->w & 0xFFFF;
-      printf("batch_idx: %d, meta_ptr: %d, %d, meta_ptr-1: %d, %d, B: %d\n", batch_idx, low, up, low_minus_one, up_minus_one, B_ptr->x);
-    }
+        meta + batch_idx * (prob_k/16) * (prob_n / 8);
     const int4 *__restrict__ s_ptr = s + batch_idx * prob_n / 8;
     int4 *__restrict__ C_ptr = C + batch_idx * prob_n / 8;
     int *locks_ptr = locks + batch_idx * prob_n;
@@ -747,6 +737,7 @@ __global__ void BMM_2_4(
     marlin_2_4_internal<threads, possible_thread_m_blocks, thread_n_blocks,
                         thread_k_blocks, stages, group_blocks>(
         A_ptr, B_ptr, meta_ptr, C_ptr, s_ptr, 1, prob_n, prob_k, locks_ptr);
+    // __syncthreads();
   }
 };
 
@@ -803,14 +794,6 @@ int triteia_cuda_bmm_2_4(const void *A, const void *B, const void *meta,
   int4 *C_ptr = (int4 *)C;
   const int4 *s_ptr = (const int4 *)s;
 
-  const int4 *__restrict__ new_meta_ptr =
-        meta_ptr + 9 * 6656 * 34560 / 16 / 8;
-
-  auto up_9 = new_meta_ptr->x >> 16;
-  auto low_9 = new_meta_ptr->x & 0xFFFF;
-  printf("new_meta_ptr: %d, %d\n", 10, low_9, up_9);
-
-  int cols = prob_m / thread_m;
   int *locks = (int *)workspace;
   int ret = 0;
   for (int i = 0; i < tot_n_blocks; i += 4) {
