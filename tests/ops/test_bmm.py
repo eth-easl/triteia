@@ -34,9 +34,9 @@ class TestBMMOp(unittest.TestCase):
         except torch.cuda.OutOfMemoryError as e:
             print(f"Out of memory, skipping b={b} m={m}, n={n}, k={k}")
         finally:
-            
+
             torch.cuda.empty_cache()
-            
+
     def test_tiny(self):
         self.run_problem(16, 256, 16, 256, groupsize=-1)
         self.run_problem(16, 512, 16, 512, groupsize=-1)
@@ -52,14 +52,14 @@ class TestBMMOp(unittest.TestCase):
         self.run_problem(4, 512, 16, 256, groupsize=-1)
 
     def test_llama(self):
-        bszs = [2,4,8,16]
+        bszs = [2, 4, 8, 16]
         for _, layers in llama_shapes.items():
             for layer in layers:
                 for bsz in bszs:
                     self.run_problem(bsz, layer[1], 16, layer[0])
 
     def test_llama_uneven(self):
-        bszs = [1,3,5,6,7,9,10,11,12,13,14,15]
+        bszs = [1, 3, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15]
         for _, layers in llama_shapes.items():
             for layer in layers:
                 for bsz in bszs:

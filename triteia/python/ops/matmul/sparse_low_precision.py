@@ -1,6 +1,7 @@
 import torch
 from triteia.python.capi import mul_2_4
 
+
 def matmul_4bit_2_4(qweight, x, meta, s):
     """Low precision sparse matrix multiplication with 2:4 sparsity.
     ----

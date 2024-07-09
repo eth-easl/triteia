@@ -48,14 +48,13 @@ setup(
                 "triteia/csrc/ops/ops.cpp",
                 "triteia/csrc/ops/marlin_nm.cu",
                 "triteia/csrc/ops/triteia_nm_bmm.cu",
+                "triteia/csrc/ops/triteia_nm_sbmm.cu",
             ],
             dlink=True,
             extra_compile_args={
-                "nvcc": [
-                    "-O3", "-arch=sm_86", "--ptxas-options=-v", "-dc", "-lineinfo"
-                ]
+                "nvcc": ["-O3", "-arch=sm_86", "--ptxas-options=-v", "-dc", "-lineinfo"]
             },
-            extra_link_args=["-lcudadevrt","-lcudart"],
+            extra_link_args=["-lcudadevrt", "-lcudart"],
         ),
     ],
     cmdclass={"build_ext": cpp_extension.BuildExtension},
