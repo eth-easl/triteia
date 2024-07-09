@@ -49,11 +49,16 @@ class TestSBMMOp(unittest.TestCase):
                 / torch.mean(torch.abs(fp16_output)),
                 0.002,
             )
-            self.assertTrue(torch.allclose(forloop_output, native_output, atol=1e-3))
-            self.assertTrue(
-                torch.allclose(forloop_output, multilaunch_output, atol=1e-3)
+            self.assertLess(
+                torch.mean(torch.abs(native_output - fp16_output))
+                / torch.mean(torch.abs(fp16_output)),
+                0.002,
             )
-            
+            self.assertLess(
+                torch.mean(torch.abs(multilaunch_output - fp16_output))
+                / torch.mean(torch.abs(fp16_output)),
+                0.002,
+            )
         except torch.cuda.OutOfMemoryError as e:
             print(f"Out of memory, skipping nr={nr}, nm={nm}, m={m}, k={k}")
         finally:

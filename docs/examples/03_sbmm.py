@@ -10,10 +10,10 @@ from triteia.python.ops.matmul.sbmm import (
 
 m = 12800
 k = 4096
-nr = 50
-nm = 10
+nr = 128
+nm = 2
 groupsize = -1
-distribution = "uniform"
+distribution = "zipf:1.5"
 dev = "cuda"
 
 indices = generate_model_distribution(distribution, nr, nm)
