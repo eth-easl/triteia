@@ -24,9 +24,23 @@ def mul_2_4(
 def bmm_2_4(
     A, B, meta, C, s, workspace, thread_k=-1, thread_m=-1, sms=-1, max_par=16
 ):
-    """FP16x(INT4+2:4 sparsity) batched matrix multiplication; can be used within `torch.compile`.
+    """FP16x(INT4+2:4 sparsity) batched matrix multiplication; 
+    (todo) can be used within `torch.compile`.
     ----
     Parameters:
 
     """
     triteia_cuda.bmm_2_4(A, B, meta, C, s, workspace, thread_k, thread_m, sms, max_par)
+
+def sbmm_2_4(
+        A, B, meta, C, s, indices, workspace,
+        starts, counts, 
+        thread_k=-1, thread_n=-1, sms=-1, max_par=16
+    ):
+    """FP16x(INT4+2:4 sparsity) selective batched matrix multiplication; 
+    (todo) can be used within `torch.compile`."""
+    triteia_cuda.ibmm(
+        A, B, meta, C, s, indices,
+        workspace,starts,counts,
+        thread_k, thread_n, sms, max_par
+    )
