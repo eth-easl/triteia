@@ -729,11 +729,15 @@ __global__ void BMM_2_4(
     const int4 *__restrict__ B_ptr = B + batch_idx * prob_k * prob_n / 16 / 4;
     const int4 *__restrict__ meta_ptr =
         meta + batch_idx * prob_k * prob_n / 16 / 8;
+
+    const int4 *__restrict__ meta_minus_one_ptr = meta_ptr - 1;
     if (batch_idx==10 || batch_idx == 9)  {
       // print value at meta_ptr
       auto up = meta_ptr->x >> 16;
       auto low = meta_ptr->x & 0xFFFF;
-      printf("batch_idx: %d, meta_ptr: %d, %d\n", batch_idx, low, up);
+      auto up_minus_one = meta_minus_one_ptr->w >> 16;
+      auto low_minus_one = meta_minus_one_ptr->w & 0xFFFF;
+      printf("batch_idx: %d, meta_ptr: %d, %d, meta_ptr-1: %d, %d, B: %d\n", batch_idx, low, up, low_minus_one, up_minus_one, B_ptr->x);
     }
     const int4 *__restrict__ s_ptr = s + batch_idx * prob_n / 8;
     int4 *__restrict__ C_ptr = C + batch_idx * prob_n / 8;
@@ -798,6 +802,13 @@ int triteia_cuda_bmm_2_4(const void *A, const void *B, const void *meta,
   const int4 *meta_ptr = (const int4 *)meta;
   int4 *C_ptr = (int4 *)C;
   const int4 *s_ptr = (const int4 *)s;
+
+  const int4 *__restrict__ new_meta_ptr =
+        meta_ptr + 9 * 6656 * 34560 / 16 / 8;
+
+  auto up_9 = new_meta_ptr->x >> 16;
+  auto low_9 = new_meta_ptr->x & 0xFFFF;
+  printf("new_meta_ptr: %d, %d\n", 10, low_9, up_9);
 
   int cols = prob_m / thread_m;
   int *locks = (int *)workspace;

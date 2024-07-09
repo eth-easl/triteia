@@ -75,6 +75,7 @@ void bmm_2_4(const torch::Tensor &A, const torch::Tensor &B,
     AT_ERROR("workspace must be of size at least ", prob_n * prob_m / 128 * max_par,
              ".");
   int dev = A.get_device();
+  // print meta size
   int err = triteia_cuda_bmm_2_4(
       A.data_ptr(), B.data_ptr(), meta.data_ptr(), C.data_ptr(), s.data_ptr(),
       prob_m, prob_n, prob_k, workspace.data_ptr(), groupsize, dev,

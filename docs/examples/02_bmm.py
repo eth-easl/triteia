@@ -4,24 +4,26 @@ from triteia.python.ops import (
     bmm_4bit_2_4_forloop,
     gen_batched_sparse_quant4_NT
 )
-
+torch.set_printoptions(edgeitems=4)
 dev = "cuda"
 b=11
 n=16
-m=35328
+m=34560
 p=6656
 
 groupsize = -1
-
+torch.manual_seed(0)
 x = torch.randn((b,1,  p), dtype=torch.float16, device=dev)
 weight_ref, qweight, scale, meta = gen_batched_sparse_quant4_NT(
     b, m, p, groupsize=groupsize, device=dev
 )
+meta = meta.contiguous()
 print(f"meta: {meta.shape} @ {meta.dtype}, scale: {scale.shape} @ {scale.dtype}, qweight: {qweight.shape} @ {qweight.dtype}")
 
 for i in range(b):
     print(f"meta{i}: {meta[i]}")
-
+    print(f"qweight{i}: {qweight[i]}")
+# find the index of 14547
 fp16_output = torch.bmm(x, weight_ref)
 forloop_output = bmm_4bit_2_4_forloop(qweight, x, meta, scale)
 native_output = bmm_4bit_2_4(qweight, x, meta, scale)
