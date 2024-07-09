@@ -33,3 +33,5 @@ def benchmark(b, m,n,k, dev="cuda", groupsize=-1):
 if __name__ == "__main__":
     benchmark(2, 256, 32, 256)
     benchmark(8, 4096, 32, 4096)
+    benchmark(8, 8192, 8, 8192)
+    
