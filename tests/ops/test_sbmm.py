@@ -25,7 +25,7 @@ class TestSBMMOp(unittest.TestCase):
     ):
         try:
             print(
-                f"Running bmm problem with nr={nr}, nm={nm}, m={m}, k={k}, distribution={distribution}"
+                f"Running sbmm problem with nr={nr}, nm={nm}, m={m}, k={k}, distribution={distribution}"
             )
             indices = generate_model_distribution(distribution, nr, nm)
             indices = torch.sort(indices)[0]

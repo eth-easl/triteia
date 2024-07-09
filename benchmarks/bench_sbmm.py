@@ -10,10 +10,9 @@ from triteia.python.configs.models.llama import llama_shapes
 from triteia.python.ops.utils.generator import generate_model_distribution
 from triteia.python.ops import gen_batched_sparse_quant4_NT
 
-flops_func = lambda nr, m, n, k: 2 * nr * m * n * k
+flops_func = lambda nr, m, k: 2 * nr * m  * k
 
-
-def benchmark(distribution, nr, nm, m, n, k, dev="cuda", groupsize=-1):
+def benchmark(distribution, nr, nm, m, k, dev="cuda", groupsize=-1):
     x = torch.randn((nr, k), dtype=torch.float16, device=dev)
     weight_ref, qweight, scale, meta = gen_batched_sparse_quant4_NT(
         nr, m, k, groupsize=groupsize, device=dev
@@ -41,7 +40,6 @@ def benchmark(distribution, nr, nm, m, n, k, dev="cuda", groupsize=-1):
         kwargs={
             "nr": nr,
             "m": m,
-            "n": n,
             "k": k,
             "x": x,
             "weight_ref": weight_ref,
@@ -55,7 +53,6 @@ def benchmark(distribution, nr, nm, m, n, k, dev="cuda", groupsize=-1):
         kwargs={
             "nr": nr,
             "m": m,
-            "n": n,
             "k": k,
             "qweight": qweight,
             "x": x,
@@ -71,7 +68,6 @@ def benchmark(distribution, nr, nm, m, n, k, dev="cuda", groupsize=-1):
         kwargs={
             "nr": nr,
             "m": m,
-            "n": n,
             "k": k,
             "qweight": qweight,
             "x": x,
@@ -87,7 +83,6 @@ def benchmark(distribution, nr, nm, m, n, k, dev="cuda", groupsize=-1):
         kwargs={
             "nr": nr,
             "m": m,
-            "n": n,
             "k": k,
             "qweight": qweight,
             "x": x,
@@ -103,8 +98,11 @@ def benchmark(distribution, nr, nm, m, n, k, dev="cuda", groupsize=-1):
         w4_2_4_native_result,
         w4_2_4_multilaunch_result,
     ]
-    print_results_table(f"sbmm nr={nr},nm={nm},m={m},n={n},k={k}", results)
+    print_results_table(f"sbmm nr={nr},nm={nm},m={m},k={k}", results)
 
 
 if __name__ == "__main__":
-    benchmark("uniform", 100, 64, 4096, 16, 4096)
+    benchmark("uniform", 100, 2, 4096, 4096)
+    benchmark("uniform", 100, 16, 4096, 4096)
+    benchmark("uniform", 100, 32, 4096, 4096)
+    benchmark("uniform", 100, 64, 4096, 4096)

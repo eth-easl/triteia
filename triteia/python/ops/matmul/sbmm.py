@@ -30,7 +30,6 @@ def sbmm_4bit_2_4_forloop(qweights, xs, metas, ss, indices, base_weight=None):
         y = torch.zeros(xs.shape[0], ss.shape[2], dtype=xs.dtype, device=xs.device)
     if torch.all(indices == -1):
         return y
-
     unique_indices, counts = torch.unique_consecutive(indices, return_counts=True)
     workspace = torch.zeros(y.shape[1] // 128 * 16, device=xs.device, dtype=torch.int32)
     for id, count in zip(unique_indices, counts):
