@@ -16,6 +16,9 @@ nvidia_gh200_120gb = {
     "name": "GH200 120GB",
     "compute_capability": "9.0",
     "memory": 120,  # in GB
+    "bandwidth": 3350,  # in GB/s
+    "fp16_tflops": 989.4,
+    "fp32_tflops": 494.7,
 }
 
 nvidia_gpus = [nvidia_rtx_3090, nvidia_gh200_120gb]
