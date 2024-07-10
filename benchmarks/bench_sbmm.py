@@ -105,8 +105,8 @@ def benchmark(distribution, nr, nm, m, k, dev="cuda", groupsize=-1):
 
 if __name__ == "__main__":
     results = []
-    nm = [16, 32, 64, 128]
-    nr = [
+    nr = [16, 32, 64, 128]
+    nm = [
         [2, 4, 8, 16],
         [2, 4, 8, 16, 32],
         [2, 4, 8, 16, 32, 64],
@@ -116,11 +116,15 @@ if __name__ == "__main__":
     ms = [4096, 8192]
     ns = [4096, 8192]
     for distribution in distributions:
-        for i in range(len(nm)):
-            for j in range(len(nr[i])):
+        for i in range(len(nr)):
+            for j in range(len(nm[i])):
                 for m in ms:
                     for n in ns:
-                        results.append(
-                            benchmark(distribution, nr[i][j], nm[i], m, n)
-                        )
+                        try:
+                            results.append(
+                                benchmark(distribution, nr[i], nm[i][j], m, n)
+                            )
+                        except Exception as e:
+                            print(f"Failed to benchmark sbmm nr={nr[i]},nm={nm[i][j]},m={m},n={n}")
+                            print(e)
     export_benchmark_results(results, ".local/sbmm_bench.json")

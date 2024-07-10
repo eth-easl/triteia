@@ -5,6 +5,14 @@ import os
 from setuptools import find_packages, setup
 from torch.utils import cpp_extension
 
+def get_compute_capability():
+    try:
+        compute_cap = os.popen("nvidia-smi --query-gpu=compute_cap --format=csv,noheader").read().strip()
+        major, minor = compute_cap.split(".")
+        return f"{major}{minor}"
+    except Exception as e:
+        print(f"Failed to detect compute capability: {e}")
+        return None
 
 def read(*paths, **kwargs):
     """Read the contents of a text file safely.
@@ -28,7 +36,10 @@ def read_requirements(path):
         for line in read(path).split("\n")
         if not line.startswith(('"', "#", "-", "git+"))
     ]
-
+    
+compute_cap = get_compute_capability()
+if compute_cap is None:
+    raise ValueError("Failed to detect compute capability")
 
 setup(
     name="triteia",
@@ -52,7 +63,7 @@ setup(
             ],
             dlink=True,
             extra_compile_args={
-                "nvcc": ["-O3", "-arch=sm_86", "--ptxas-options=-v", "-dc", "-lineinfo"]
+                "nvcc": ["-O3", f"-arch=sm_{compute_cap}", "--ptxas-options=-v", "-dc", "-lineinfo"]
             },
             extra_link_args=["-lcudadevrt", "-lcudart"],
         ),
