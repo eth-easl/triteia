@@ -7,7 +7,7 @@ from torch.utils import cpp_extension
 
 def get_compute_capability():
     try:
-        compute_cap = os.popen("nvidia-smi --query-gpu=compute_cap --format=csv,noheader").read().strip()
+        compute_cap = os.popen("nvidia-smi --query-gpu=compute_cap --format=csv,noheader").read().strip().split("\n")[0]
         major, minor = compute_cap.split(".")
         return f"{major}{minor}"
     except Exception as e:

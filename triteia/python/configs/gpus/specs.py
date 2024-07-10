@@ -11,7 +11,14 @@ nvidia_rtx_3090 = {
     "fp16_tflops": 71,
     "fp32_tflops": 35.58,
 }
-
+nvidia_rtx_a6000 = {
+    "name": "NVIDIA RTX A6000",
+    "compute_capability": "8.6",
+    "memory": 48,  # in GB
+    "bandwidth": 768,  # in GB/s
+    "fp16_tflops": 154.8,
+    "fp32_tflops": 77.4,
+}
 nvidia_gh200_120gb = {
     "name": "GH200 120GB",
     "compute_capability": "9.0",
