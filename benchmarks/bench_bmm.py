@@ -4,7 +4,7 @@ from triteia.python.ops import (
     gen_batched_sparse_quant4_NT,
     bmm_4bit_2_4,
 )
-from triteia.python.utils import timing_function, print_results_table
+from triteia.python.utils import timing_function, print_results_table, export_benchmark_results
 from triteia.python.configs.models.llama import llama_shapes
 
 flops_func = lambda b, m, n, k: 2 * b * m * n * k
@@ -63,9 +63,11 @@ def benchmark(b, m, n, k, dev="cuda", groupsize=-1):
     )
     results = [fp16_result, w4_2_4_forloop_result, w4_2_4_native_result]
     print_results_table(f"bmm b={b},m={m},n={n},k={k}", results)
-
+    return results
 
 if __name__ == "__main__":
-    benchmark(2, 256, 32, 256)
-    benchmark(8, 4096, 32, 4096)
-    benchmark(8, 8192, 8, 8192)
+    results = []
+    results.append(benchmark(2, 256, 32, 256))
+    results.append(benchmark(8, 4096, 32, 4096))
+    results.append(benchmark(8, 8192, 8, 8192))
+    export_benchmark_results(results, ".local/bmm_bench.json")

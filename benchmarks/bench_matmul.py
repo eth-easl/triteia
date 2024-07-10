@@ -1,6 +1,6 @@
 import torch
 from triteia.python.ops import matmul_4bit_2_4, gen_sparse_quant4_NT
-from triteia.python.utils import timing_function, print_results_table
+from triteia.python.utils import timing_function, print_results_table, export_benchmark_results
 
 flops_func = lambda m, n, k: 2 * m * n * k
 
@@ -39,9 +39,13 @@ def benchmark(m, n, k, dev="cuda", groupsize=-1):
     )
     results = [fp16_result, w4_2_4_result]
     print_results_table(f"matmul m={m},n={n},k={k}", results)
-
+    return results
 
 if __name__ == "__main__":
-    benchmark(256, 32, 256)
-    benchmark(4096, 32, 4096)
-    benchmark(4096, 4096, 4096)
+    results = []
+    results.append(benchmark(256, 32, 256))
+    results.append(benchmark(256, 256, 256))
+    results.append(benchmark(4096, 4096, 4096))
+    results.append(benchmark(8192, 8192, 8192))
+    results.append(benchmark(16384, 128, 16384))
+    export_benchmark_results(results, ".local/matmul_bench.json")

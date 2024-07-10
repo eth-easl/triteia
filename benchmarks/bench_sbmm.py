@@ -5,12 +5,13 @@ from triteia.python.ops import (
     sbmm_4bit_2_4_native,
     sbmm_4bit_2_4_multilaunch,
 )
-from triteia.python.utils import timing_function, print_results_table
+from triteia.python.utils import timing_function, print_results_table, export_benchmark_results
 from triteia.python.configs.models.llama import llama_shapes
 from triteia.python.ops.utils.generator import generate_model_distribution
 from triteia.python.ops import gen_batched_sparse_quant4_NT
 
-flops_func = lambda nr, m, k: 2 * nr * m  * k
+flops_func = lambda nr, m, k: 2 * nr * m * k
+
 
 def benchmark(distribution, nr, nm, m, k, dev="cuda", groupsize=-1):
     x = torch.randn((nr, k), dtype=torch.float16, device=dev)
@@ -99,10 +100,27 @@ def benchmark(distribution, nr, nm, m, k, dev="cuda", groupsize=-1):
         w4_2_4_multilaunch_result,
     ]
     print_results_table(f"sbmm nr={nr},nm={nm},m={m},k={k}", results)
+    return results
 
 
 if __name__ == "__main__":
-    benchmark("uniform", 100, 2, 4096, 4096)
-    benchmark("uniform", 100, 16, 4096, 4096)
-    benchmark("uniform", 100, 32, 4096, 4096)
-    benchmark("uniform", 100, 64, 4096, 4096)
+    results = []
+    nm = [16, 32, 64, 128]
+    nr = [
+        [2, 4, 8, 16],
+        [2, 4, 8, 16, 32],
+        [2, 4, 8, 16, 32, 64],
+        [2, 4, 8, 16, 32, 64, 128],
+    ]
+    distributions = ['uniform', 'zipf:1.5']
+    ms = [4096, 8192]
+    ns = [4096, 8192]
+    for distribution in distributions:
+        for i in range(len(nm)):
+            for j in range(len(nr[i])):
+                for m in ms:
+                    for n in ns:
+                        results.append(
+                            benchmark(distribution, nr[i][j], nm[i], m, n)
+                        )
+    export_benchmark_results(results, ".local/sbmm_bench.json")
