@@ -1,10 +1,10 @@
 import json
 import torch
 import inspect
+import pandas as pd
 from rich.console import Console
 from rich.table import Table
 from triteia.python.configs.gpus.specs import get_gpu_device_info
-
 
 def timing_function(func, flops_func, kwargs, repeats=1):
     func_args_names = inspect.getfullargspec(func).args
@@ -85,3 +85,38 @@ def export_benchmark_results(results, filepath:str):
             'gpu_specs': gpu_specs,
             'results': config_results
         }, f, indent=4)
+
+def format_benchmark_results(filepath: str):
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+    gpu_specs = data['gpu_specs']
+    results = data['results']
+    df_results = []
+    parsed_results = []
+    configs = []
+    for result in results:
+        config = result['config'].copy()
+        del result['config']
+        res = result.copy()
+        func_name = res['func_name']
+        del res['func_name']
+        res = {f"{func_name}_{k}": v for k, v in res.items()}
+        parsed_results.append({
+            "config": config,
+            **res
+        })
+        configs.append(config)
+    for config in configs:
+        res = [d for d in parsed_results if d['config'] == config]
+        res = [{k: v for k, v in d.items() if k != 'config'} for d in res]
+        results = {}
+        for r in res:
+            results.update(r)
+        df_results.append({
+            **config,
+            **results,
+        })
+    df = pd.DataFrame(df_results)
+    # deduplicate rows
+    df = df.drop_duplicates()
+    return gpu_specs, df
