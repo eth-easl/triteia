@@ -36,11 +36,9 @@ def gen_sparse_quant4_NT(m, k, groupsize=-1, device="cuda", prune_n=2, prune_m=4
     s = s.reshape((-1, m)).contiguous()
     linear = nn.Linear(k, m)
     linear.weight.data = ref
-    layer = sparse_low_precision_linear(m, k, groupsize=groupsize)
+    layer = sparse_low_precision_linear(k, m, groupsize=-1)
     if groupsize == -1:
         groupsize = k
-    layer.k = k
-    layer.n = m
     layer.groupsize = groupsize
     layer.B = torch.empty((k_sp // 16, m * 16 // 8), dtype=torch.int, device=device)
     layer.meta = torch.empty((m, k // 16), dtype=torch.int16, device=device)

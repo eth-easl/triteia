@@ -31,7 +31,7 @@ class TestSBMMOp(unittest.TestCase):
             indices = torch.sort(indices)[0]
             x = torch.randn((nr, k), dtype=torch.float16, device=dev)
             weight_ref, qweight, scale, meta = gen_batched_sparse_quant4_NT(
-                nr, m, k, groupsize=groupsize, device=dev
+                nm, m, k, groupsize=groupsize, device=dev
             )
             fp16_output = sbmm_16bit_forloop(weight_ref, x, indices, base_weight=None)
             forloop_output = sbmm_4bit_2_4_forloop(
@@ -65,8 +65,9 @@ class TestSBMMOp(unittest.TestCase):
             torch.cuda.empty_cache()
 
     def test_tiny(self):
-        self.run_problem("uniform", 10, 5, 256, 256)
+        self.run_problem("uniform",  10,  5, 256,  256)
         self.run_problem("zipf:1.5", 128, 2, 4096, 12288)
+        
     # def test_llama(self):
     #     nrs = [16, 32, 64, 128, 256]
     #     nms = [[2,4,8,16], [2,4,8,16,32], [2,4,8,16,32,64], [2,4,8,16,32,64,128], [2,4,8,16,32,64,128,256]]
