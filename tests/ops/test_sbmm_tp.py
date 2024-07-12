@@ -52,6 +52,7 @@ class TestSBMMOp(unittest.TestCase):
             
             ref_fp16_final_outputs = torch.cat(ref_fp16_outputs, dim=1)
             final_outputs = torch.cat(outputs, dim=1)
+            
             stacked_fp16_weights = torch.cat(ref_weights, dim=2)
             stacked_qweights = torch.cat(qweights, dim=2)
             stacked_scales = torch.cat(scales, dim=2)

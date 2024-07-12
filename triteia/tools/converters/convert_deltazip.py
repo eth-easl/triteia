@@ -138,12 +138,12 @@ def convert_model(args, verbose=True):
                 new_tensors[module + f".{idx}.qweight"] = qweight
                 new_tensors[module + f".{idx}.scales"] = scales
                 new_tensors[module + f".{idx}.meta"] = meta
-    
     for key in pack_plan.keys():
         key_weights = []
         key_scales = []
-        for module, idx in pack_plan[key]:
-            print("Taking module: ", module)
+        plan = sorted(pack_plan[key], key=lambda x: x[1])
+        print(f"Plan for {key}: {plan}")
+        for module, idx in plan:
             weight, scales = dequantized_tensors[module]
             assert weight.shape[1] == scales.shape[1]
             key_weights.append(weight)
@@ -189,4 +189,4 @@ if __name__ == "__main__":
     
     print("Converting model...")
     new_tensors = convert_model(args, verbose=True)
-    # save_tensors(new_tensors, args.save_path)
+    save_tensors(new_tensors, args.save_path)

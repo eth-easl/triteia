@@ -51,8 +51,14 @@ def check_output(weights, reference_weights, module_name):
         output = matmul_4bit_2_4(qweight, x, meta, scale)
         tp_outputs.append(output)
     tp_output = torch.cat(tp_outputs, dim=1)
+    
     print(f"reference_output: {reference_output.shape}, tp_output: {tp_output.shape}")
-    print(f"reference_output: {reference_output}, tp_output: {tp_output}")
+    print(f"first half reference_out: \n{reference_output[:, :reference_output.size(1)//2]}\nfirst half tp_out: \n{tp_output[:, :tp_output.size(1)//2]}")
+    
+    print(f"second half reference_out: \n{reference_output[:, reference_output.size(1)//2:]}\nsecond half tp_out: \n{tp_output[:, tp_output.size(1)//2:]}")
+
+    print(f"reference_output: \n{reference_output}\ntp_output: \n{tp_output}")
+    
     print(f"max diff: {torch.max(torch.abs(reference_output - tp_output))}")
     
 def verify(args):
