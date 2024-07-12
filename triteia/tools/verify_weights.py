@@ -44,6 +44,7 @@ def check_output(weights, reference_weights, module_name):
     x = torch.randn((nr, 32 * reference_qweight.size(0)), dtype=torch.float16, device='cuda')
     reference_output = matmul_4bit_2_4(reference_qweight, x, reference_meta, reference_scale)
     tp_outputs = []
+    tp_groups = sorted(list(tp_groups))
     for tp in tp_groups:
         qweight = target_weight[f"{module_name}.{tp}.qweight"]
         meta = target_weight[f"{module_name}.{tp}.meta"]
