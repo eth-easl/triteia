@@ -29,7 +29,6 @@ def check_tp_group_equal(weights, reference_weights):
             
 def check_output(weights, reference_weights, module_name):
     target_weight = {key: value for key, value in weights.items() if module_name in key}
-    reference_weight = {key: value for key, value in reference_weights.items() if module_name in key}
     tp_groups = set()
     for key in weights.keys():
         # separate by .
@@ -39,8 +38,7 @@ def check_output(weights, reference_weights, module_name):
     reference_qweight = reference_weights[f"{module_name}.0.qweight"]
     reference_meta = reference_weights[f"{module_name}.0.meta"]
     reference_scale = reference_weights[f"{module_name}.0.scales"]
-    
-    nr = 10
+    nr = 128
     x = torch.randn((nr, 32 * reference_qweight.size(0)), dtype=torch.float16, device='cuda')
     reference_output = matmul_4bit_2_4(reference_qweight, x, reference_meta, reference_scale)
     tp_outputs = []
@@ -52,25 +50,37 @@ def check_output(weights, reference_weights, module_name):
         output = matmul_4bit_2_4(qweight, x, meta, scale)
         tp_outputs.append(output)
     tp_output = torch.cat(tp_outputs, dim=1)
-    
-    print(f"reference_output: {reference_output.shape}, tp_output: {tp_output.shape}")
-    print(f"first half reference_out: \n{reference_output[:, :reference_output.size(1)//2]}\nfirst half tp_out: \n{tp_output[:, :tp_output.size(1)//2]}")
-    
-    print(f"second half reference_out: \n{reference_output[:, reference_output.size(1)//2:]}\nsecond half tp_out: \n{tp_output[:, tp_output.size(1)//2:]}")
-
+    max_diff = torch.max(torch.abs(reference_output - tp_output)) / torch.mean(torch.abs(reference_output))
     print(f"reference_output: \n{reference_output}\ntp_output: \n{tp_output}")
-    
-    print(f"max diff: {torch.max(torch.abs(reference_output - tp_output))}")
+    print(f"diff: \n{reference_output-tp_output}")
+    print(f"max_diff: {max_diff}")
+
+    return max_diff
+
+def check_output_all_modules(weights, reference_weights):
+    modules = set()
+    for key in weights.keys():
+        # separate by .
+        # last element - component, second last - tp id, others - module name
+        module_name = ".".join(key.split(".")[:-2])
+        modules.add(module_name)
+    for module in modules:
+        if "qkv_proj" in module or "gate_up_proj" in module:
+            max_diff = check_output(weights, reference_weights, module)
+            print(f"Max difference for {module}: {max_diff}")
+
     
 def verify(args):
     print(args)
     weights = read_tensors(args.input, device='cuda')
     reference_weights = read_tensors(args.reference_input, device='cuda')
-    check_output(weights, reference_weights, "model.layers.9.self_attn.qkv_proj")
+    # check_output_all_modules(weights, reference_weights)
+    check_output(weights, reference_weights, "model.layers.17.self_attn.qkv_proj")
     # check_tp_group_equal(weights, reference_weights)
 
 if __name__=="__main__":
     import argparse
+    # set seed
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=str, help="Path to the input file")
     parser.add_argument("--reference-input", default="", type=str, help="Path to the input file")

@@ -77,7 +77,7 @@ class TestSBMMOp(unittest.TestCase):
             print(f"Out of memory, skipping nr={nr}, nm={nm}, m={m}, k={k}")
         finally:
             torch.cuda.empty_cache()
-
+    
     def test_tiny(self):
         self.run_problem_column("uniform",  10,  5, 256,  256, 2)
         
