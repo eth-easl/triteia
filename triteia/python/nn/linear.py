@@ -105,6 +105,7 @@ class sparse_low_precision_linear(nn.Module):
             s = s.reshape((1, -1))
 
         mask = mask_creator(w.T, n=2, m=4).cuda().bool()
+        # mask = torch.ones_like(w.t()).cuda().bool()
         w = torch.round(w / s).int()
         w += (maxq + 1) // 2
         w = torch.clamp(w, 0, maxq)
@@ -116,6 +117,8 @@ class sparse_low_precision_linear(nn.Module):
         else:
             s = s.reshape((-1, len(scale_perm_single)))[:, scale_perm_single]
         w = mask * w.T
+        
+        w = w.contiguous()
         w, meta = sparse_semi_structured_from_dense_cutlass(w)
         w = w.t()
         self.infeatures = self.infeatures // 2

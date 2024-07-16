@@ -281,16 +281,13 @@ def sparse_semi_structured_from_dense_cutlass(dense):
             | (meta_n[:, :, 6] << 24)
             | (meta_n[:, :, 7] << 28)
         )
-
     # Reorder meta tensor elements.
     meta_reordered = meta.new_empty((m * meta_ncols,))  # type: ignore[possibly-undefined]
     meta_offsets = _calculate_meta_reordering_scatter_offsets(
         m, meta_ncols, meta_dtype, device
     )
     meta_reordered.scatter_(0, meta_offsets, meta.view(-1))
-
     return (sparse, meta_reordered.view(m, meta_ncols))
-
 
 # This function performs reverse of the function above - it
 # reconstructs dense matrix from a pair of "compressed" matrix, given
@@ -395,6 +392,19 @@ def sparse_semi_structured_to_dense_cutlass(sparse, meta_reordered):
 
     return dense.view(m, 2 * k)
 
+def reorder_meta(meta):
+    m, k = meta.size(0), meta.size(1) * 16
+    ksparse = 4
+    meta_dtype = torch.int16
+    quadbits_per_meta_elem = meta_dtype.itemsize * 8 // 4
+    # 256 // (2 * 4) = 32
+    meta_ncols = k // (ksparse * quadbits_per_meta_elem)
+    meta_reordered = meta.new_empty((m * meta_ncols,))
+    meta_offsets = _calculate_meta_reordering_scatter_offsets(
+        m, meta_ncols, meta_dtype, "cuda"
+    )
+    meta_reordered.scatter_(0, meta_offsets, meta.view(-1))
+    return meta_reordered.view(m, meta_ncols)
 
 _perm, _scale_perm, _scale_perm_single = _get_perms()
 _perm_2_4, _scale_perm_2_4, _scale_perm_single_2_4 = _get_perms_2_4()

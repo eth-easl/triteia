@@ -75,7 +75,7 @@ def verify(args):
     weights = read_tensors(args.input, device='cuda')
     reference_weights = read_tensors(args.reference_input, device='cuda')
     # check_output_all_modules(weights, reference_weights)
-    check_output(weights, reference_weights, "model.layers.17.self_attn.qkv_proj")
+    check_output(weights, reference_weights, "model.layers.9.self_attn.qkv_proj")
     # check_tp_group_equal(weights, reference_weights)
 
 if __name__=="__main__":
