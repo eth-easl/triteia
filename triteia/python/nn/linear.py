@@ -117,7 +117,7 @@ class sparse_low_precision_linear(nn.Module):
         else:
             s = s.reshape((-1, len(scale_perm_single)))[:, scale_perm_single]
         w = mask * w.T
-        
+
         w = w.contiguous()
         w, meta = sparse_semi_structured_from_dense_cutlass(w)
         w = w.t()

@@ -6,6 +6,7 @@ from rich.console import Console
 from rich.table import Table
 from triteia.python.configs.gpus.specs import get_gpu_device_info
 
+
 def timing_function(func, flops_func, kwargs, repeats=1):
     func_args_names = inspect.getfullargspec(func).args
     func_args = {arg: kwargs[arg] for arg in func_args_names if arg in kwargs}
@@ -67,55 +68,52 @@ def print_results_table(title, results):
     console = Console()
     console.print(table)
 
-def export_benchmark_results(results, filepath:str):
+
+def export_benchmark_results(results, filepath: str):
     gpu_specs = get_gpu_device_info()
     config_results = []
     for result in results:
         for res in result:
             # ignore args if it is torch tensor
-            config = {k: v for k, v in res['args'].items() if not isinstance(v, torch.Tensor)}
-            del res['args']
-            del res['output']
-            config_results.append({
-                'config': config,
-                **res
-            })
-    with open(filepath, 'w') as f:
-        json.dump({
-            'gpu_specs': gpu_specs,
-            'results': config_results
-        }, f, indent=4)
+            config = {
+                k: v for k, v in res["args"].items() if not isinstance(v, torch.Tensor)
+            }
+            del res["args"]
+            del res["output"]
+            config_results.append({"config": config, **res})
+    with open(filepath, "w") as f:
+        json.dump({"gpu_specs": gpu_specs, "results": config_results}, f, indent=4)
+
 
 def format_benchmark_results(filepath: str):
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         data = json.load(f)
-    gpu_specs = data['gpu_specs']
-    results = data['results']
+    gpu_specs = data["gpu_specs"]
+    results = data["results"]
     df_results = []
     parsed_results = []
     configs = []
     for result in results:
-        config = result['config'].copy()
-        del result['config']
+        config = result["config"].copy()
+        del result["config"]
         res = result.copy()
-        func_name = res['func_name']
-        del res['func_name']
+        func_name = res["func_name"]
+        del res["func_name"]
         res = {f"{func_name}_{k}": v for k, v in res.items()}
-        parsed_results.append({
-            "config": config,
-            **res
-        })
+        parsed_results.append({"config": config, **res})
         configs.append(config)
     for config in configs:
-        res = [d for d in parsed_results if d['config'] == config]
-        res = [{k: v for k, v in d.items() if k != 'config'} for d in res]
+        res = [d for d in parsed_results if d["config"] == config]
+        res = [{k: v for k, v in d.items() if k != "config"} for d in res]
         results = {}
         for r in res:
             results.update(r)
-        df_results.append({
-            **config,
-            **results,
-        })
+        df_results.append(
+            {
+                **config,
+                **results,
+            }
+        )
     df = pd.DataFrame(df_results)
     # deduplicate rows
     df = df.drop_duplicates()

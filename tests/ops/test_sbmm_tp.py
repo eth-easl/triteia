@@ -42,25 +42,34 @@ class TestSBMMOp(unittest.TestCase):
                 qweights.append(qweight)
                 scales.append(scale)
                 metas.append(meta)
-                
-                fp16_partial_output = sbmm_16bit_forloop(weight_ref, x, indices, base_weight=None)
+
+                fp16_partial_output = sbmm_16bit_forloop(
+                    weight_ref, x, indices, base_weight=None
+                )
                 native_partial_output = sbmm_4bit_2_4_native(
                     qweight, x, meta, scale, indices, base_weight=None
                 )
                 ref_fp16_outputs.append(fp16_partial_output)
                 outputs.append(native_partial_output)
-            
+
             ref_fp16_final_outputs = torch.cat(ref_fp16_outputs, dim=1)
             final_outputs = torch.cat(outputs, dim=1)
-            
+
             stacked_fp16_weights = torch.cat(ref_weights, dim=2)
             stacked_qweights = torch.cat(qweights, dim=2)
             stacked_scales = torch.cat(scales, dim=2)
             stacked_metas = torch.cat(metas, dim=1)
-            
-            stacked_fp16_output = sbmm_16bit_forloop(stacked_fp16_weights, x, indices, base_weight=None)
+
+            stacked_fp16_output = sbmm_16bit_forloop(
+                stacked_fp16_weights, x, indices, base_weight=None
+            )
             stacked_native_output = sbmm_4bit_2_4_native(
-                stacked_qweights, x, stacked_metas, stacked_scales, indices, base_weight=None
+                stacked_qweights,
+                x,
+                stacked_metas,
+                stacked_scales,
+                indices,
+                base_weight=None,
             )
             self.assertLess(
                 torch.mean(torch.abs(final_outputs - ref_fp16_final_outputs))
@@ -72,15 +81,15 @@ class TestSBMMOp(unittest.TestCase):
                 / torch.mean(torch.abs(ref_fp16_final_outputs)),
                 0.002,
             )
-            
+
         except torch.cuda.OutOfMemoryError as e:
             print(f"Out of memory, skipping nr={nr}, nm={nm}, m={m}, k={k}")
         finally:
             torch.cuda.empty_cache()
-    
+
     def test_tiny(self):
-        self.run_problem_column("uniform",  10,  5, 256,  256, 2)
-        
+        self.run_problem_column("uniform", 10, 5, 256, 256, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

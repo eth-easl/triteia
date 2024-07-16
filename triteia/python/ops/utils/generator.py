@@ -84,9 +84,11 @@ def generate_model_distribution(distribution, num_queries, num_models):
         models = np.random.choice(to_eval_models, num_queries, p=probs)
     return torch.tensor(models, dtype=torch.int32, device="cuda")
 
+
 def fp16_to_sparse(weights, scale, device="cuda"):
     from triteia.python.nn.linear import sparse_low_precision_linear
-    k, m= weights.shape
+
+    k, m = weights.shape
     k_sp = k // 2
     s = scale
     layer = sparse_low_precision_linear(k, m, groupsize=-1)
@@ -114,37 +116,35 @@ def torch_weight_to_sparse_marlin(weight, scale, tp_size=1, chunk_by="column"):
         chunk_by: "column" or "row"
     """
     from triteia.python.nn.linear import sparse_low_precision_linear
+
     assert chunk_by in ["column", "row"], "chunk_by must be either 'column' or 'row'"
     assert weight.dim() == 2, "weight must be a 2D tensor"
     assert weight.size(0) % tp_size == 0, "out_features must be divisible by tp_size"
-    assert weight.size(1) == scale.size(1), "out_features of weight and scale must match"
-    
+    assert weight.size(1) == scale.size(
+        1
+    ), "out_features of weight and scale must match"
+
     if not weight.is_contiguous():
         weight = weight.contiguous()
     if not scale.is_contiguous():
         scale = scale.contiguous()
-    
-    qweights, scales,metas = [], [], []
+
+    qweights, scales, metas = [], [], []
     for i in range(tp_size):
         if chunk_by == "column":
             tp_weight = weight[
-                :, 
-                i * weight.size(1) // tp_size: (i + 1) * weight.size(1) // tp_size
+                :, i * weight.size(1) // tp_size : (i + 1) * weight.size(1) // tp_size
             ]
             tp_scales = scale[
-                :, 
-                i * scale.size(1) // tp_size: (i + 1) * scale.size(1) // tp_size
+                :, i * scale.size(1) // tp_size : (i + 1) * scale.size(1) // tp_size
             ]
         elif chunk_by == "row":
             tp_weight = weight[
-                i * weight.size(0) // tp_size: (i + 1) * weight.size(0) // tp_size, 
-                :
+                i * weight.size(0) // tp_size : (i + 1) * weight.size(0) // tp_size, :
             ]
             tp_scales = scale
         layer = sparse_low_precision_linear(
-            infeatures=tp_weight.size(0),
-            outfeatures=tp_weight.size(1),
-            groupsize=-1
+            infeatures=tp_weight.size(0), outfeatures=tp_weight.size(1), groupsize=-1
         )
         k, m = tp_weight.size(0), tp_weight.size(1)
         k_sp = k // 2

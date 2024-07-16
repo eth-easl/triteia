@@ -5,7 +5,11 @@ from triteia.python.ops import (
     sbmm_4bit_2_4_native,
     sbmm_4bit_2_4_multilaunch,
 )
-from triteia.python.utils import timing_function, print_results_table, export_benchmark_results
+from triteia.python.utils import (
+    timing_function,
+    print_results_table,
+    export_benchmark_results,
+)
 from triteia.python.configs.models.llama import llama_shapes
 from triteia.python.ops.utils.generator import generate_model_distribution
 from triteia.python.ops import gen_batched_sparse_quant4_NT
@@ -112,7 +116,7 @@ if __name__ == "__main__":
         [2, 4, 8, 16, 32, 64],
         [2, 4, 8, 16, 32, 64, 128],
     ]
-    distributions = ['uniform', 'zipf:1.5']
+    distributions = ["uniform", "zipf:1.5"]
     ms = [4096, 8192]
     ns = [4096, 8192]
     for distribution in distributions:
@@ -125,6 +129,8 @@ if __name__ == "__main__":
                                 benchmark(distribution, nr[i], nm[i][j], m, n)
                             )
                         except Exception as e:
-                            print(f"Failed to benchmark sbmm nr={nr[i]},nm={nm[i][j]},m={m},n={n}")
+                            print(
+                                f"Failed to benchmark sbmm nr={nr[i]},nm={nm[i][j]},m={m},n={n}"
+                            )
                             print(e)
     export_benchmark_results(results, ".local/sbmm_bench.json")

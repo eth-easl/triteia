@@ -28,7 +28,7 @@ nvidia_gh200_120gb = {
     "fp32_tflops": 494.7,
 }
 
-nvidia_gpus = [nvidia_rtx_3090,nvidia_rtx_a6000, nvidia_gh200_120gb]
+nvidia_gpus = [nvidia_rtx_3090, nvidia_rtx_a6000, nvidia_gh200_120gb]
 
 
 def get_gpu_device_info():

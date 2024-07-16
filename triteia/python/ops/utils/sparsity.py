@@ -289,6 +289,7 @@ def sparse_semi_structured_from_dense_cutlass(dense):
     meta_reordered.scatter_(0, meta_offsets, meta.view(-1))
     return (sparse, meta_reordered.view(m, meta_ncols))
 
+
 # This function performs reverse of the function above - it
 # reconstructs dense matrix from a pair of "compressed" matrix, given
 # in the layout used by CUTLASS backend, and accompanying metadata
@@ -392,6 +393,7 @@ def sparse_semi_structured_to_dense_cutlass(sparse, meta_reordered):
 
     return dense.view(m, 2 * k)
 
+
 def reorder_meta(meta):
     m, k = meta.size(0), meta.size(1) * 16
     ksparse = 4
@@ -405,6 +407,7 @@ def reorder_meta(meta):
     )
     meta_reordered.scatter_(0, meta_offsets, meta.view(-1))
     return meta_reordered.view(m, meta_ncols)
+
 
 _perm, _scale_perm, _scale_perm_single = _get_perms()
 _perm_2_4, _scale_perm_2_4, _scale_perm_single_2_4 = _get_perms_2_4()
