@@ -1,12 +1,10 @@
 import safetensors as st
 from safetensors.torch import save_file
 
-
 def save_tensors(tensors, path):
     for key in tensors.keys():
         tensors[key] = tensors[key].contiguous()
     save_file(tensors, path)
-
 
 def read_tensors(path, prefix=None, device="cpu"):
     tensors = {}
@@ -19,3 +17,4 @@ def read_tensors(path, prefix=None, device="cpu"):
                     module_name = key.removeprefix(prefix + ".")
                     tensors[module_name] = f.get_tensor(key)
     return tensors
+

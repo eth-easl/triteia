@@ -65,7 +65,7 @@ class TestSBMMOp(unittest.TestCase):
             torch.cuda.empty_cache()
 
     def test_tiny(self):
-        self.run_problem("uniform", 10, 5, 256, 256)
+        self.run_problem("uniform",  10,  5, 256,  256)
         self.run_problem("zipf:1.5", 128, 2, 4096, 12288)
 
     # def test_llama(self):

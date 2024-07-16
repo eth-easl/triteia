@@ -3,7 +3,6 @@ import cupy as cp
 from typing import Dict
 from torch.utils.dlpack import to_dlpack, from_dlpack
 from tqdm import tqdm
-
 try:
     import kvikio
     from kvikio.nvcomp import LZ4Manager
