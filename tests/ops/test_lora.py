@@ -1,11 +1,11 @@
 import torch
 import unittest
 from triteia.python.ops import (
-    lora_16bit_forloop,
+    lora_forloop,
 )
 from triteia.python.configs.models.llama import llama_shapes
 from triteia.python.ops.utils.generator import generate_model_distribution
-from triteia.python.ops import gen_batched_lora_16
+from triteia.python.ops import gen_batched_lora_16_bit
 
 
 class TestLORAOp(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestLORAOp(unittest.TestCase):
         nm: int,
         m: int,
         n: int,
-        k: int,
+        rank: int,
         with_base_weight=False,
         groupsize=-1,
         dev="cuda",
@@ -26,22 +26,21 @@ class TestLORAOp(unittest.TestCase):
             # nm = number of models
             # m = matrix row size
             # n = matrix col size
-            # k = rank
+            # rank = rank
             print(
-                f"Running sbmm problem with nr={nr}, nm={nm}, m={m}, n={n}, k={k}, distribution={distribution}"
+                f"Running sbmm problem with nr={nr}, nm={nm}, m={m}, n={n}, rank={rank}, distribution={distribution}"
             )
             indices = generate_model_distribution(distribution, nr, nm)
             indices = torch.sort(indices)[0]
             # using n here
             x = torch.randn((nr, n), dtype=torch.float16, device=dev)
-            # TODO: should I transpose the weight matrice like in the sbmm generator?
-            As, Bs = gen_batched_lora_16(
-                nm, n, m, k, device=dev
+            As, Bs = gen_batched_lora_16_bit(
+                nm, n, m, rank, device=dev
             )
-            fp16_output = lora_16bit_forloop(As, Bs, x, indices, base_weight=None)
+            fp16_output = lora_forloop(As, Bs, x, indices, base_weight=None)
 
         except torch.cuda.OutOfMemoryError as e:
-            print(f"Out of memory, skipping nr={nr}, nm={nm}, m={m}, n={n}, k={k}")
+            print(f"Out of memory, skipping nr={nr}, nm={nm}, m={m}, n={n}, rank={rank}")
         finally:
             torch.cuda.empty_cache()
 
@@ -63,4 +62,6 @@ class TestLORAOp(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    print(f'available devices: {torch.cuda.device_count()}')
+    print(f'current device: { torch.cuda.current_device()}')
     unittest.main()

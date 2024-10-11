@@ -1,6 +1,6 @@
 import torch
 
-def lora_16bit_forloop(weights_A, weights_B, xs, indices, base_weight=None):
+def lora_forloop(weights_A, weights_B, xs, indices, base_weight=None):
     
     if base_weight is not None:
         y = torch.matmul(xs, base_weight.t())

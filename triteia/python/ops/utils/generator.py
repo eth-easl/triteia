@@ -4,16 +4,16 @@ import torch.nn as nn
 from .sparsity import mask_creator
 
 
-def gen_lora_16(m, n, k, device = "cuda"):
-    A = torch.randn((m, k), dtype=torch.half, device=device)
-    B = torch.randn((k, n), dtype=torch.half, device=device)
+def gen_lora_16_bit(m, n, rank, device = "cuda"):
+    A = torch.randn((m, rank), dtype=torch.half, device=device)
+    B = torch.randn((rank, n), dtype=torch.half, device=device)
     return A, B
 
-def gen_batched_lora_16(b, m, n, k, device = "cuda"):
+def gen_batched_lora_16_bit(b, m, n, rank, device = "cuda"):
     As = []
     Bs = []
     for _ in range(b):
-        A, B = gen_lora_16(m, n, k, device)
+        A, B = gen_lora_16_bit(m, n, rank, device)
         As.append(A)
         Bs.append(B)
     As = torch.stack(As).to(device)
