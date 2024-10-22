@@ -5,6 +5,7 @@ import os
 from setuptools import find_packages, setup
 from torch.utils import cpp_extension
 
+import pathlib
 
 def get_compute_capability():
     forced_cap = os.environ.get("TRITEIA_COMPUTE_CAP", None)
@@ -69,6 +70,7 @@ setup(
             "triteia_cuda",
             [
                 "triteia/csrc/ops/ops.cpp",
+                "triteia/csrc/ops/sgmv.cu",
                 "triteia/csrc/ops/marlin_nm.cu",
                 "triteia/csrc/ops/triteia_nm_bmm.cu",
                 "triteia/csrc/ops/triteia_nm_sbmm.cu",
@@ -85,6 +87,7 @@ setup(
                 ]
             },
             extra_link_args=["-lcudadevrt", "-lcudart"],
+            include_dirs=[str(pathlib.Path(__file__).parent.resolve() / "3rdparty/cutlass/include")],
         ),
     ],
     cmdclass={"build_ext": cpp_extension.BuildExtension},

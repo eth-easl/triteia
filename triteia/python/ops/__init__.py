@@ -6,7 +6,7 @@ from .matmul.sbmm import (
     sbmm_4bit_2_4_multilaunch,
     sbmm_4bit_2_4_native,
 )
-from .matmul.lora import lora_forloop
+from .matmul.lora import lora_forloop, lora_sgmv
 from .utils.sparsity import mask_creator
 from .utils.generator import gen_sparse_quant4_NT, gen_batched_sparse_quant4_NT, gen_batched_lora_16_bit
 from .attention.sdpa import sdpa
@@ -25,4 +25,5 @@ __all__ = [
     "sbmm_4bit_2_4_native",
     "sdpa",
     "lora_forloop",
+    "lora_sgmv"
 ]

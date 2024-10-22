@@ -4,7 +4,55 @@
 #include <torch/python.h>
 #include <torch/library.h>
 
+#include <c10/cuda/CUDAStream.h>
+#include <cuda_bf16.h>
+#include <cuda_fp16.h>
+#include <torch/extension.h>
+#include "sgmv.h"
+
+
 #define TORCH_LIBRARY_EXPAND(NAME, MODULE) TORCH_LIBRARY(NAME, MODULE)
+
+#define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
+
+#define CHECK_CONTIGUOUS(x) \
+  TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
+
+#define CHECK_INPUT(x) \
+  CHECK_CUDA(x);       \
+  CHECK_CONTIGUOUS(x)
+
+#define CHECK_DIM(d, x) \
+  TORCH_CHECK(x.dim() == d, #x " must be a " #d "D tensor")
+
+#define CHECK_SHAPE(a, b) check_shape(a, b, #a, #b)
+
+#define CHECK_EQ(a, b) \
+  TORCH_CHECK((a) == (b), "CHECK_EQ(" #a ", " #b ") failed. ", a, " vs ", b)
+
+//====== dispatch pytorch dtype ======
+
+#define _DISPATCH_SWITCH(cond, ...) \
+  [&]() -> bool {                   \
+    switch (cond) {                 \
+      __VA_ARGS__                   \
+      default:                      \
+        return false;               \
+    }                               \
+  }()
+
+#define _DISPATCH_DTYPE_CASE(enum_type, c_type_, ...) \
+  case enum_type: {                                   \
+    using c_type = c_type_;                           \
+    return __VA_ARGS__();                             \
+  }
+
+#define _DISPATCH_DTYPE_CASES(...)                                 \
+  _DISPATCH_DTYPE_CASE(at::ScalarType::Half, nv_half, __VA_ARGS__) \
+  _DISPATCH_DTYPE_CASE(at::ScalarType::BFloat16, nv_bfloat16, __VA_ARGS__)
+
+#define DISPATCH_TORCH_DTYPE(scalar_type, ...) \
+  _DISPATCH_SWITCH(scalar_type, _DISPATCH_DTYPE_CASES(__VA_ARGS__))
 
 namespace marlin {
 int marlin_cuda_2_4(const void *A, const void *B, const void *meta, void *C,
@@ -46,6 +94,35 @@ void mul_2_4(const torch::Tensor &A, const torch::Tensor &B,
 }  // namespace marlin
 
 namespace triteia {
+void dispatch_sgmv_cutlass(torch::Tensor y, torch::Tensor x,
+                           torch::Tensor w_ptr, torch::Tensor s,
+                           torch::Tensor tmp, int layer_idx) {
+  CHECK_INPUT(y);
+  CHECK_INPUT(x);
+  CHECK_INPUT(w_ptr);
+  CHECK_INPUT(s);
+  CHECK_INPUT(tmp);
+
+  CHECK_DIM(2, y);
+  CHECK_DIM(2, x);
+  CHECK_DIM(1, w_ptr);
+  CHECK_DIM(1, s);
+  CHECK_DIM(1, tmp);
+
+  int num_problems = s.size(0) - 1;
+  int d_in = x.size(1);
+  int d_out = y.size(1);
+  CHECK_EQ(tmp.size(0), static_cast<int64_t>(sgmv_tmp_size(num_problems)));
+  cudaStream_t stream = c10::cuda::getCurrentCUDAStream();
+  bool ok = DISPATCH_TORCH_DTYPE(x.scalar_type(), [&] {
+    return sgmv<c_type>((c_type*)y.data_ptr(), (c_type*)x.data_ptr(),
+                        (c_type**)w_ptr.data_ptr(), s.data_ptr<int32_t>(),
+                        tmp.data_ptr<uint8_t>(), num_problems, d_in, d_out,
+                        layer_idx, stream);
+  });
+  TORCH_CHECK(ok, "No suitable kernel.", " dtype=", x.scalar_type());
+}
+
 const int ERR_PROB_SHAPE = 1;
 const int ERR_KERN_SHAPE = 2;
 int triteia_cuda_bmm_2_4(const void *A, const void *B, const void *meta,
@@ -165,6 +242,8 @@ void batched_rotary_embedding(torch::Tensor &positions, torch::Tensor &query,
 }  // namespace vllm
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+  m.def("sgmv_cutlass", &triteia::dispatch_sgmv_cutlass, "");
+  m.def("sgmv_cutlass_tmp_size", &sgmv_tmp_size, "");
   m.def("mul_2_4", &marlin::mul_2_4,
         "Marlin FP16xINT4 matmul with 2:4 sparsity.");
   m.def("bmm_2_4", &triteia::bmm_2_4, "FP16xINT4 bmm with 2:4 sparsity.");

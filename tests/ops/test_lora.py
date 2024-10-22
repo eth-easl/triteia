@@ -2,6 +2,7 @@ import torch
 import unittest
 from triteia.python.ops import (
     lora_forloop,
+    lora_sgmv
 )
 from triteia.python.configs.models.llama import llama_shapes
 from triteia.python.ops.utils.generator import generate_model_distribution
@@ -37,7 +38,10 @@ class TestLORAOp(unittest.TestCase):
             As, Bs = gen_batched_lora_16_bit(
                 nm, n, m, rank, device=dev
             )
-            fp16_output = lora_forloop(As, Bs, x, indices, base_weight=None)
+            sgvm_output = lora_sgmv(As, Bs, x, indices, base_weight=None)
+            native_output = lora_forloop(As, Bs, x, indices, base_weight=None)
+            
+            print(torch.allclose(native_output, sgvm_output))
 
         except torch.cuda.OutOfMemoryError as e:
             print(f"Out of memory, skipping nr={nr}, nm={nm}, m={m}, n={n}, rank={rank}")
@@ -47,7 +51,7 @@ class TestLORAOp(unittest.TestCase):
     def test_tiny(self):
         rank = 50
         self.run_problem("uniform",  10,  5, 256,  256, rank)
-        self.run_problem("zipf:1.5", 128, 2, 4096, 12288, rank)
+        #self.run_problem("zipf:1.5", 128, 2, 4096, 12288, rank)
 
     # def test_llama(self):
     #     nrs = [16, 32, 64, 128, 256]

@@ -5,8 +5,8 @@ from .sparsity import mask_creator
 
 
 def gen_lora_16_bit(m, n, rank, device = "cuda"):
-    A = torch.randn((m, rank), dtype=torch.half, device=device)
-    B = torch.randn((rank, n), dtype=torch.half, device=device)
+    A = torch.randn((m, rank), dtype=torch.float16, device=device)
+    B = torch.randn((rank, n), dtype=torch.float16, device=device)
     return A, B
 
 def gen_batched_lora_16_bit(b, m, n, rank, device = "cuda"):
