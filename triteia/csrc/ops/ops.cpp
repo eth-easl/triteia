@@ -8,10 +8,27 @@
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
 #include <torch/extension.h>
+
 #include "sgmv.h"
 
 
 #define TORCH_LIBRARY_EXPAND(NAME, MODULE) TORCH_LIBRARY(NAME, MODULE)
+
+//====== utils ======
+
+inline void check_shape(const torch::Tensor& a, const torch::Tensor& b,
+                        const char* a_name, const char* b_name) {
+  TORCH_CHECK(a.dim() == b.dim(), a_name, ".dim() != ", b_name, ".dim(). ",
+              a.dim(), " vs ", b.dim());
+  for (int i = 0; i < a.dim(); ++i) {
+    TORCH_CHECK(a.size(i) == b.size(i), a_name, ".size(", i, ") != ", b_name,
+                ".size(", i, ")");
+  }
+}
+
+inline constexpr uint32_t pack_u16(uint16_t a, uint16_t b) {
+  return (uint32_t(a) << 16) | uint32_t(b);
+}
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 
@@ -29,6 +46,9 @@
 
 #define CHECK_EQ(a, b) \
   TORCH_CHECK((a) == (b), "CHECK_EQ(" #a ", " #b ") failed. ", a, " vs ", b)
+
+#define CHECK_GE(a, b) \
+  TORCH_CHECK((a) >= (b), "CHECK_GE(" #a ", " #b ") failed. ", a, " vs ", b)
 
 //====== dispatch pytorch dtype ======
 

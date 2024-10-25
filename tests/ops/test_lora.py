@@ -8,8 +8,12 @@ from triteia.python.configs.models.llama import llama_shapes
 from triteia.python.ops.utils.generator import generate_model_distribution
 from triteia.python.ops import gen_batched_lora_16_bit
 
+# for testing
+from triteia.python.capi import add_lora_sgmv_cutlass
+
 
 class TestLORAOp(unittest.TestCase):
+    @torch.inference_mode()
     def run_problem(
         self,
         distribution: str,
@@ -33,13 +37,45 @@ class TestLORAOp(unittest.TestCase):
             )
             indices = generate_model_distribution(distribution, nr, nm)
             indices = torch.sort(indices)[0]
+
             # using n here
             x = torch.randn((nr, n), dtype=torch.float16, device=dev)
             As, Bs = gen_batched_lora_16_bit(
                 nm, n, m, rank, device=dev
             )
-            sgvm_output = lora_sgmv(As, Bs, x, indices, base_weight=None)
             native_output = lora_forloop(As, Bs, x, indices, base_weight=None)
+            sgvm_output = lora_sgmv(As, Bs, x, indices, base_weight=None)
+            
+            """
+                reproducing their testing
+            """
+            # batch_setup = "3x7"
+            # num_problems = nm
+            # problem_size = nr/nm
+            # dtype = torch.float16
+            # num_layers = 1
+            # device = dev
+
+            # wa = [
+            #     torch.rand((num_layers, n, rank), dtype=dtype, device=device)
+            #     for _ in range(num_problems)
+            # ]
+            # wb = [
+            #     torch.rand((num_layers, rank, m), dtype=dtype, device=device)
+            #     for _ in range(num_problems)
+            # ]
+            # wa_ptr = torch.tensor([t.data_ptr() for t in wa], dtype=torch.int64, device=device)
+            # wb_ptr = torch.tensor([t.data_ptr() for t in wb], dtype=torch.int64, device=device)
+            # s = torch.cumsum(
+            #     torch.tensor([0] + [problem_size] * num_problems, device=device),
+            #     dim=0,
+            #     dtype=torch.int32,
+            # )
+            
+            # x = torch.rand((s[-1], n), dtype=dtype, device=device)
+            # y = torch.rand((s[-1], m), dtype=dtype, device=device)
+
+            # add_lora_sgmv_cutlass(y, x, wa_ptr, wb_ptr, s, 0, rank)
             
             print(torch.allclose(native_output, sgvm_output))
 
