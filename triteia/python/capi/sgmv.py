@@ -25,7 +25,6 @@ def add_lora_sgmv_cutlass(
       `s[0] == 0`, `s[-1] == B`.
     layer_idx: Layer index of the weight matrices.
   """
-    print(x.dtype)
     tmp_size = triteia_cuda.sgmv_cutlass_tmp_size(wa_ptr.size(0))
     tmp = torch.empty((tmp_size,), dtype=torch.uint8, device=x.device)
     v = torch.zeros((x.size(0), lora_rank), dtype=x.dtype, device=x.device)

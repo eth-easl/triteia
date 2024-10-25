@@ -1,12 +1,12 @@
 import torch
 from triteia.python.capi import add_lora_sgmv_cutlass
 
-def lora_forloop(weights_A, weights_B, xs, indices, base_weight=None):
+def lora_forloop(weights_A, weights_B, x, indices, base_weight=None):
     
     if base_weight is not None:
-        y = torch.matmul(xs, base_weight.t())
+        y = torch.matmul(x, base_weight.t())
     else:
-        y = torch.zeros(xs.shape[0], weights_B.shape[2], dtype=xs.dtype, device=xs.device)
+        y = torch.zeros(x.shape[0], weights_B.shape[2], dtype=x.dtype, device=x.device)
     if torch.all(indices == -1):
         return y
 
@@ -14,34 +14,59 @@ def lora_forloop(weights_A, weights_B, xs, indices, base_weight=None):
     for id, count in zip(unique_indices, counts):
         if id != -1:
             idx_mask = indices == id
-            inp = xs[idx_mask]
+            inp = x[idx_mask]
             output = torch.matmul(torch.matmul(inp, weights_A[id]), weights_B[id])
             y[idx_mask] += output
     return y
 
-def lora_sgmv(weights_A, weights_B, xs, indices, base_weight=None):
+def lora_sgmv(weights_A, weights_B, x, indices, base_weight=None, layer_idx=0):
     if base_weight is not None:
-        y = torch.matmul(xs, base_weight.t())
+        y = torch.matmul(x, base_weight.t())
     else:
-        y = torch.zeros(xs.shape[0], weights_B.shape[2], dtype=xs.dtype, device=xs.device)
+        y = torch.zeros(x.shape[0], weights_B.shape[2], dtype=x.dtype, device=x.device)
     if torch.all(indices == -1):
         return y
     
-    lora_rank = weights_A.shape[2]
-    layer_idx = 0
-    #indices.append(indices.xs.shape[0])
-    print(indices)
-    s = indices
-    unique_indices, counts = torch.unique_consecutive(indices, return_counts=True)
-    s = torch.cat((unique_indices, torch.tensor([xs.shape[0]], device = xs.device, dtype=torch.int32)))
-    print(s.dtype)
-    print(y.dtype)
-    print(weights_A.dtype)
-    print(weights_B.dtype)
-    print(lora_rank)
+    # get the rank from the weight matrix shape
+    rank = weights_A.shape[2]
     
-    wa_ptr = torch.tensor([t.data_ptr() for t in weights_A], dtype=torch.int64, device=xs.device)
-    wb_ptr = torch.tensor([t.data_ptr() for t in weights_B], dtype=torch.int64, device=xs.device)
-    add_lora_sgmv_cutlass(y, xs, wa_ptr, wb_ptr, s, layer_idx, lora_rank)
+    # transform indices to sgvm format
+    # s contains the starting index in x for each of the models
+    s = [0]
+    next = 0
+    unique_indices, counts = torch.unique_consecutive(indices, return_counts=True)
+    for i, idx in enumerate(unique_indices):
+        # skip -1 models
+        if idx == -1:
+            continue
+        # models that are not in unique_indices start and end at the same index
+        for j in range(next, idx):
+            s.append(s[-1])
+        s.append(s[-1] + counts[i].item())
+        next = idx + 1
+    for i in range(next, weights_A.shape[0]):
+        s.append(s[-1])
+    s = torch.tensor(s, device = x.device, dtype = torch.int32)
+    
+    # remove the inputs for the -1 model
+    input_x = x
+    input_y = y
+    remainder_y = torch.empty(0, y.shape[1], device = x.device)
+    if unique_indices[0].item() == -1:
+        input_x = x[counts[0].item():]
+        input_y = y[counts[0].item():]
+        remainder_y = y[:counts[0].item()]
 
-    return y
+
+    # adding a layer dimension for each model
+    weights_A = weights_A.unsqueeze(1)
+    weights_B = weights_B.unsqueeze(1)
+
+    # get the pointer to each model
+    wa_ptr = torch.tensor([t.data_ptr() for t in weights_A], dtype=torch.int64, device=x.device)
+    wb_ptr = torch.tensor([t.data_ptr() for t in weights_B], dtype=torch.int64, device=x.device)
+
+    add_lora_sgmv_cutlass(input_y, input_x, wa_ptr, wb_ptr, s, layer_idx, rank)
+    output_y = torch.cat((remainder_y, input_y))
+
+    return output_y
