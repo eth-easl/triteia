@@ -3,13 +3,15 @@ import triton
 import triton.language as tl
 
 import os
-os.environ['ENABLE_TMA'] = '1'
+
+os.environ["ENABLE_TMA"] = "1"
+
 
 @triton.jit
-def grouped_launch(pid,
-                m, n,
-                block_m: tl.constexpr, block_n: tl.constexpr, group_m: tl.constexpr):
-    
+def grouped_launch(
+    pid, m, n, block_m: tl.constexpr, block_n: tl.constexpr, group_m: tl.constexpr
+):
+
     grid_m = tl.cdiv(m, block_m)
     grid_n = tl.cdiv(n, block_n)
 
@@ -24,11 +26,9 @@ def grouped_launch(pid,
 
 
 @triton.jit()
-def col_major(pid,
-              m, n,
-              block_m: tl.constexpr, block_n: tl.constexpr):
-    
-    grid_m = tl.cdiv(m, block_m) 
+def col_major(pid, m, n, block_m: tl.constexpr, block_n: tl.constexpr):
+
+    grid_m = tl.cdiv(m, block_m)
 
     pid_m = pid % grid_m
     pid_n = pid // grid_m
@@ -37,25 +37,35 @@ def col_major(pid,
 
 
 @triton.jit
-def gemm_split_k_kernel(a_ptr, b_ptr, c_ptr,
-            stride_am, stride_ak,
-            stride_bk, stride_bn,
-            stride_cm, stride_cn,
-            m, n, k,
-            block_m: tl.constexpr, block_n: tl.constexpr, block_k: tl.constexpr,
-            split_k: tl.constexpr, group_m: tl.constexpr):
-    
+def gemm_split_k_kernel(
+    a_ptr,
+    b_ptr,
+    c_ptr,
+    stride_am,
+    stride_ak,
+    stride_bk,
+    stride_bn,
+    stride_cm,
+    stride_cn,
+    m,
+    n,
+    k,
+    block_m: tl.constexpr,
+    block_n: tl.constexpr,
+    block_k: tl.constexpr,
+    split_k: tl.constexpr,
+    group_m: tl.constexpr,
+):
+
     pid = tl.program_id(0)
     pid_k = tl.program_id(1)
-    grid_k = tl.cdiv(k, block_k*split_k)
+    grid_k = tl.cdiv(k, block_k * split_k)
 
-    pid_m, pid_n = grouped_launch(pid,
-                                  m, n,
-                                  block_m, block_n, group_m)
+    pid_m, pid_n = grouped_launch(pid, m, n, block_m, block_n, group_m)
 
-    offs_m = pid_m*block_m + tl.arange(0, block_m)
-    offs_n = pid_n*block_n + tl.arange(0, block_n)
-    offs_k = pid_k*block_k + tl.arange(0, block_k)
+    offs_m = pid_m * block_m + tl.arange(0, block_m)
+    offs_n = pid_n * block_n + tl.arange(0, block_n)
+    offs_k = pid_k * block_k + tl.arange(0, block_k)
 
     offs_am = tl.max_contiguous(tl.multiple_of(offs_m, block_m), block_m)
     offs_bn = tl.max_contiguous(tl.multiple_of(offs_n, block_n), block_n)
@@ -63,10 +73,9 @@ def gemm_split_k_kernel(a_ptr, b_ptr, c_ptr,
     a_ptrs = a_ptr + (offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak)
     b_ptrs = b_ptr + (offs_k[:, None] * stride_bk + offs_bn[None, :] * stride_bn)
 
-
     acc = tl.zeros((block_m, block_n), dtype=tl.float32)
     for k_ in range(0, grid_k):
-        
+
         k_remaining = k - k_ * (block_k * split_k)
 
         a = tl.load(a_ptrs, mask=offs_k[None, :] < k_remaining, other=0.0)
@@ -79,19 +88,20 @@ def gemm_split_k_kernel(a_ptr, b_ptr, c_ptr,
 
     acc.to(tl.float16)
 
-    offs_m = pid_m*block_m + tl.arange(0, block_m)
-    offs_n = pid_n*block_n + tl.arange(0, block_n)
-    
+    offs_m = pid_m * block_m + tl.arange(0, block_m)
+    offs_n = pid_n * block_n + tl.arange(0, block_n)
+
     c_ptrs = c_ptr + (offs_m[:, None] * stride_cm + offs_n[None, :] * stride_cn)
     mask = (offs_m < m)[:, None] & (offs_n < n)[None, :]
-    
+
     tl.atomic_add(c_ptrs, acc, mask=mask)
+
 
 def gemm_split_k(a, b):
 
     m, k = a.shape
     _, n = b.shape
-    
+
     block_m = 64
     block_n = 64
     block_k = 512
@@ -104,7 +114,7 @@ def gemm_split_k(a, b):
     total_blocks_n = triton.cdiv(n, block_n)
     total_programs_mn = total_blocks_m * total_blocks_n
     total_programs_k = split_k
-    
+
     grid = (total_programs_mn, total_programs_k)
 
     # print(f"problem m size: {m}, tile size m: {block_m}, total blocks m: {total_blocks_m}")
@@ -113,13 +123,27 @@ def gemm_split_k(a, b):
 
     # print(f"total thread blocks k: {k}, total thread blocks m and total thread blocks n = {total_blocks_m=} x {total_blocks_n} = {total_programs_mn}")
     # print(f"{total_programs_mn=}, {total_programs_k=}")
-    
+
     c = torch.zeros((m, n), device=a.device, dtype=torch.float16)
-    k = gemm_split_k_kernel[grid](a, b, c,
-                              a.stride(0), a.stride(1),
-                              b.stride(0), b.stride(1),
-                              c.stride(0), c.stride(1),
-                              m, n, k,
-                              block_m, block_n, block_k,
-                              split_k, group_m, num_stages=num_stages, num_warps=num_warps)
+    k = gemm_split_k_kernel[grid](
+        a,
+        b,
+        c,
+        a.stride(0),
+        a.stride(1),
+        b.stride(0),
+        b.stride(1),
+        c.stride(0),
+        c.stride(1),
+        m,
+        n,
+        k,
+        block_m,
+        block_n,
+        block_k,
+        split_k,
+        group_m,
+        num_stages=num_stages,
+        num_warps=num_warps,
+    )
     return c
