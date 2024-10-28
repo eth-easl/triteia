@@ -10,6 +10,7 @@ from triteia.python.configs.models.llama import llama_shapes
 from triteia.python.ops.utils.generator import generate_model_distribution
 from triteia.python.ops import gen_batched_sparse_quant4_NT
 
+
 class TestSBMMOp(unittest.TestCase):
     def run_problem(
         self,
@@ -66,12 +67,19 @@ class TestSBMMOp(unittest.TestCase):
 
     def test_tiny(self):
         for i in range(20):
-            self.run_problem("uniform",  10,  5, 256,  512)
+            self.run_problem("uniform", 10, 5, 256, 512)
             self.run_problem("zipf:1.5", 128, 2, 4096, 12288)
 
     def test_llama(self):
         nrs = [8, 16, 32, 64, 128, 256]
-        nms = [[1, 2,3, 4, 5,6,7, 8], [2,4,8,16], [2,4,8,16,32], [2,4,8,16,32,64], [2,4,8,16,32,64,128], [2,4,8,16,32,64,128,256]]
+        nms = [
+            [1, 2, 3, 4, 5, 6, 7, 8],
+            [2, 4, 8, 16],
+            [2, 4, 8, 16, 32],
+            [2, 4, 8, 16, 32, 64],
+            [2, 4, 8, 16, 32, 64, 128],
+            [2, 4, 8, 16, 32, 64, 128, 256],
+        ]
         distributions = ["uniform", "zipf:1.5"]
         for _, layers in llama_shapes.items():
             for layer in layers:
@@ -79,6 +87,7 @@ class TestSBMMOp(unittest.TestCase):
                     for nm_id, nm in enumerate(nms[nr_id]):
                         for distribution in distributions:
                             self.run_problem(distribution, nr, nm, layer[0], layer[1])
+
 
 if __name__ == "__main__":
     unittest.main()
