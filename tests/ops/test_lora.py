@@ -40,11 +40,12 @@ class TestLORAOp(unittest.TestCase):
 
             # using n here
             x = torch.randn((nr, n), dtype=torch.float16, device=dev)
+            x2 = torch.clone(x)
             As, Bs = gen_batched_lora_16_bit(
                 nm, n, m, rank, device=dev
             )
             native_output = lora_forloop(As, Bs, x, indices, base_weight=None)
-            sgvm_output = lora_sgmv(As, Bs, x, indices, base_weight=None)
+            sgvm_output = lora_sgmv(As, Bs, x2, indices, base_weight=None)
             
             print(torch.allclose(native_output, sgvm_output))
 
@@ -55,7 +56,7 @@ class TestLORAOp(unittest.TestCase):
 
     def test_tiny(self):
         # the rank needs to be divisble by 8
-        rank = 32
+        rank = 8
         self.run_problem("uniform",  10,  5, 256,  256, rank)
         self.run_problem("zipf:1.5", 128, 2, 4096, 12288, rank)
 

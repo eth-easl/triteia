@@ -44,6 +44,7 @@ def lora_sgmv(weights_A, weights_B, x, indices, base_weight=None, layer_idx=0):
             s.append(s[-1])
         s.append(s[-1] + counts[i].item())
         next = idx + 1
+    # clean up the missing models
     for i in range(next, weights_A.shape[0]):
         s.append(s[-1])
     s = torch.tensor(s, device = x.device, dtype = torch.int32)
@@ -51,7 +52,7 @@ def lora_sgmv(weights_A, weights_B, x, indices, base_weight=None, layer_idx=0):
     # remove the inputs for the -1 model
     input_x = x
     input_y = y
-    remainder_y = torch.empty(0, y.shape[1], device = x.device)
+    remainder_y = torch.empty(0, device = x.device)
     if unique_indices[0].item() == -1:
         input_x = x[counts[0].item():]
         input_y = y[counts[0].item():]
@@ -67,6 +68,10 @@ def lora_sgmv(weights_A, weights_B, x, indices, base_weight=None, layer_idx=0):
     wb_ptr = torch.tensor([t.data_ptr() for t in weights_B], dtype=torch.int64, device=x.device)
 
     add_lora_sgmv_cutlass(input_y, input_x, wa_ptr, wb_ptr, s, layer_idx, rank)
-    output_y = torch.cat((remainder_y, input_y))
+    
+    if unique_indices[0].item() == -1:
+        output_y = torch.cat((remainder_y, input_y))
+    else:
+        output_y = input_y
 
     return output_y
