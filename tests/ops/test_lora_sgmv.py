@@ -41,14 +41,28 @@ class TestLORAOp(unittest.TestCase):
 
             # using n here
             x = torch.randn((nr, n), dtype=torch.float16, device=dev)
-            x2 = torch.clone(x)
             As, Bs = gen_batched_lora_16_bit(
                 nm, n, m, rank, device=dev
             )
             native_output = lora_forloop(As, Bs, x, indices, base_weight=None)
-            sgvm_output = lora_sgmv(As, Bs, x2, indices, base_weight=None)
+            sgvm_output = lora_sgmv(As, Bs, x, indices, base_weight=None)
             
-            print(torch.allclose(native_output, sgvm_output))
+             # Tolerances from punica
+            rtol, atol = (5e-3, 5e-3)
+            all_close = torch.allclose(native_output, sgvm_output, rtol = rtol, atol = atol)
+            print(f"The sgvm_output and native_output {'ARE' if all_close else 'ARE NOT'} close.")
+
+            # Check which individual elements are close
+            mask = torch.isclose(native_output, sgvm_output, rtol = rtol, atol = atol)
+            num = (~mask).sum().item()
+            print(f"Number of elements that are not close: {num}")
+
+            # Print the differences for elements that are not close
+            for i in range(min(mask.shape[0], 100)):
+                for j in range(min(mask.shape[1], 100)):
+                    if not mask[i, j]:
+                        diff = native_output[i, j] - sgvm_output[i, j]
+                        print(f"Index ({i}, {j}): native_output = {native_output[i, j]}, sgvm_output = {sgvm_output[i, j]}, difference = {diff}")
 
         except torch.cuda.OutOfMemoryError as e:
             print(f"Out of memory, skipping nr={nr}, nm={nm}, m={m}, n={n}, rank={rank}")
@@ -57,8 +71,8 @@ class TestLORAOp(unittest.TestCase):
 
     def test_tiny(self):
         # the rank needs to be divisble by 8
-        rank = 8
-        self.run_problem("uniform",  10,  5, 256,  256, rank)
+        rank = 64
+        self.run_problem("uniform",  10,  5, 256, 256, rank)
         self.run_problem("zipf:1.5", 128, 2, 4096, 12288, rank)
 
     # def test_llama(self):

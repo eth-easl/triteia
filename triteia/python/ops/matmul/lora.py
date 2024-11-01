@@ -19,9 +19,33 @@ def lora_forloop(weights_A, weights_B, x, indices, base_weight=None):
             y[idx_mask] += output
     return y
 
-def lora_bgmv(weights_A, weights_B, x, indices, base_weight=None, layer_idx=0):
+def lora_bgmv(weights_A, weights_B, x, indices, base_weight=None, layer_idx=0, scale = 1.0):
+    # need to transpose
+    # need to seperate -1 and the rest
+    if base_weight is not None:
+        y = torch.matmul(x, base_weight.t())
+    else:
+        y = torch.zeros(x.shape[0], weights_B.shape[2], dtype=x.dtype, device=x.device)
+    if torch.all(indices == -1):
+        return y
 
-    pass
+    # Transpose and ensure contiguity after transpose
+    weights_A_T = weights_A.transpose(1, 2).contiguous()
+    weights_B_T = weights_B.transpose(1, 2).contiguous()
+    
+    # Add layer dimension
+    weights_A_T = weights_A_T.unsqueeze(1)
+    weights_B_T = weights_B_T.unsqueeze(1)
+
+    indices = indices.to(torch.long)
+
+    mask = indices != -1
+    inp_x = x[mask]
+    inp_y = y[mask]
+    inp_indices = indices[mask]
+    add_lora_bgmv(inp_y, inp_x, weights_A_T, weights_B_T, inp_indices, layer_idx, scale)
+    y[mask] = inp_y
+    return y
 
 def lora_sgmv(weights_A, weights_B, x, indices, base_weight=None, layer_idx=0):
     if base_weight is not None:
