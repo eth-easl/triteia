@@ -6,6 +6,20 @@ from setuptools import find_packages, setup
 from torch.utils import cpp_extension
 
 import pathlib
+def remove_unwanted_pytorch_nvcc_flags():
+    REMOVE_NVCC_FLAGS = [
+        "-D__CUDA_NO_HALF_OPERATORS__",
+        "-D__CUDA_NO_HALF_CONVERSIONS__",
+        "-D__CUDA_NO_BFLOAT16_CONVERSIONS__",
+        "-D__CUDA_NO_HALF2_OPERATORS__",
+    ]
+    for flag in REMOVE_NVCC_FLAGS:
+        try:
+            cpp_extension.COMMON_NVCC_FLAGS.remove(flag)
+        except ValueError:
+            pass
+
+remove_unwanted_pytorch_nvcc_flags()
 
 def get_compute_capability():
     forced_cap = os.environ.get("TRITEIA_COMPUTE_CAP", None)

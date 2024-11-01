@@ -6,7 +6,7 @@
 #include <cuda/pipeline>
 #include <iostream>
 
-#include "flashinfer/vec_dtypes.cuh"
+#include "flashinfer_vec_dtypes.cuh"
 
 namespace cg = cooperative_groups;
 
