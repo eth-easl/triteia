@@ -1,5 +1,5 @@
 import torch
-from triteia.python.capi import add_lora_sgmv_cutlass
+from triteia.python.capi import add_lora_sgmv_cutlass, add_lora_bgmv
 
 def lora_forloop(weights_A, weights_B, x, indices, base_weight=None):
     
@@ -18,6 +18,10 @@ def lora_forloop(weights_A, weights_B, x, indices, base_weight=None):
             output = torch.matmul(torch.matmul(inp, weights_A[id]), weights_B[id])
             y[idx_mask] += output
     return y
+
+def lora_bgmv(weights_A, weights_B, x, indices, base_weight=None, layer_idx=0):
+
+    pass
 
 def lora_sgmv(weights_A, weights_B, x, indices, base_weight=None, layer_idx=0):
     if base_weight is not None:

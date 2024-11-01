@@ -2,7 +2,8 @@ import torch
 import unittest
 from triteia.python.ops import (
     lora_forloop,
-    lora_sgmv
+    lora_sgmv,
+    lora_bgmv
 )
 from triteia.python.configs.models.llama import llama_shapes
 from triteia.python.ops.utils.generator import generate_model_distribution

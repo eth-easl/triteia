@@ -9,7 +9,10 @@
 #include <cuda_fp16.h>
 #include <torch/extension.h>
 
+#include <cstdint>
+
 #include "sgmv.h"
+#include "bgmv_config.h"
 
 
 #define TORCH_LIBRARY_EXPAND(NAME, MODULE) TORCH_LIBRARY(NAME, MODULE)
@@ -113,36 +116,111 @@ void mul_2_4(const torch::Tensor &A, const torch::Tensor &B,
 }
 }  // namespace marlin
 
-namespace triteia {
-void dispatch_sgmv_cutlass(torch::Tensor y, torch::Tensor x,
+namespace punica {
+  void dispatch_sgmv_cutlass(torch::Tensor y, torch::Tensor x,
                            torch::Tensor w_ptr, torch::Tensor s,
                            torch::Tensor tmp, int layer_idx) {
-  CHECK_INPUT(y);
-  CHECK_INPUT(x);
-  CHECK_INPUT(w_ptr);
-  CHECK_INPUT(s);
-  CHECK_INPUT(tmp);
+    CHECK_INPUT(y);
+    CHECK_INPUT(x);
+    CHECK_INPUT(w_ptr);
+    CHECK_INPUT(s);
+    CHECK_INPUT(tmp);
 
-  CHECK_DIM(2, y);
-  CHECK_DIM(2, x);
-  CHECK_DIM(1, w_ptr);
-  CHECK_DIM(1, s);
-  CHECK_DIM(1, tmp);
+    CHECK_DIM(2, y);
+    CHECK_DIM(2, x);
+    CHECK_DIM(1, w_ptr);
+    CHECK_DIM(1, s);
+    CHECK_DIM(1, tmp);
 
-  int num_problems = s.size(0) - 1;
-  int d_in = x.size(1);
-  int d_out = y.size(1);
-  CHECK_EQ(tmp.size(0), static_cast<int64_t>(sgmv_tmp_size(num_problems)));
-  cudaStream_t stream = c10::cuda::getCurrentCUDAStream();
-  bool ok = DISPATCH_TORCH_DTYPE(x.scalar_type(), [&] {
-    return sgmv<c_type>((c_type*)y.data_ptr(), (c_type*)x.data_ptr(),
-                        (c_type**)w_ptr.data_ptr(), s.data_ptr<int32_t>(),
-                        tmp.data_ptr<uint8_t>(), num_problems, d_in, d_out,
-                        layer_idx, stream);
-  });
-  TORCH_CHECK(ok, "No suitable kernel.", " dtype=", x.scalar_type());
-}
+    int num_problems = s.size(0) - 1;
+    int d_in = x.size(1);
+    int d_out = y.size(1);
+    CHECK_EQ(tmp.size(0), static_cast<int64_t>(sgmv_tmp_size(num_problems)));
+    cudaStream_t stream = c10::cuda::getCurrentCUDAStream();
+    bool ok = DISPATCH_TORCH_DTYPE(x.scalar_type(), [&] {
+      return sgmv<c_type>((c_type*)y.data_ptr(), (c_type*)x.data_ptr(),
+                          (c_type**)w_ptr.data_ptr(), s.data_ptr<int32_t>(),
+                          tmp.data_ptr<uint8_t>(), num_problems, d_in, d_out,
+                          layer_idx, stream);
+    });
+    TORCH_CHECK(ok, "No suitable kernel.", " dtype=", x.scalar_type());
+  }
 
+  //====== bgmv ======
+
+  template <typename T>
+  inline bool launch_bgmv_kernel(T* Y, const T* X, const T* W,
+                                const int64_t* lora_indices,
+                                uint16_t in_features, uint16_t out_features,
+                                int64_t batch_size, int64_t num_layers,
+                                int64_t layer_idx, float scale) {
+    switch (pack_u16(in_features, out_features)) {
+  #define CASE_ONESIDE(_T, feat_in, feat_out)                           \
+    case pack_u16(feat_in, feat_out):                                   \
+      bgmv_kernel<feat_in, feat_out>(Y, X, W, lora_indices, batch_size, \
+                                    num_layers, layer_idx, scale);     \
+      break;
+  #define CASE(_T, narrow, wide)  \
+    CASE_ONESIDE(T, narrow, wide) \
+    CASE_ONESIDE(T, wide, narrow)
+
+      FOR_BGMV_WIDE_NARROW(CASE, _)
+  #undef CASE
+  #undef CASE_ONESIDE
+      default:
+        return false;
+    }
+
+    return true;
+  }
+
+  void dispatch_bgmv(torch::Tensor y, torch::Tensor x, torch::Tensor w,
+                    torch::Tensor indicies, int64_t layer_idx, float scale) {
+    CHECK_INPUT(y);
+    CHECK_INPUT(x);
+    CHECK_INPUT(w);
+    CHECK_INPUT(indicies);
+
+    CHECK_DIM(2, y);
+    CHECK_DIM(2, x);
+    CHECK_DIM(4, w);
+    CHECK_DIM(1, indicies);
+
+    int64_t B = x.size(0);
+    int64_t h_in = x.size(1);
+    int64_t h_out = y.size(1);
+    int64_t num_layers = w.size(1);
+    CHECK_EQ(w.size(3), h_in);
+    CHECK_EQ(w.size(2), h_out);
+    CHECK_EQ(indicies.size(0), x.size(0));
+    CHECK_EQ(y.size(0), x.size(0));
+    bool ok = false;
+    if (h_in < 65536 && h_out < 65536) {
+      switch (x.scalar_type()) {
+        case at::ScalarType::Half:
+          ok = launch_bgmv_kernel(static_cast<nv_half*>(y.data_ptr()),
+                                  static_cast<nv_half*>(x.data_ptr()),
+                                  static_cast<nv_half*>(w.data_ptr()),
+                                  indicies.data_ptr<int64_t>(), h_in, h_out, B,
+                                  num_layers, layer_idx, scale);
+          break;
+        case at::ScalarType::BFloat16:
+          ok = launch_bgmv_kernel(static_cast<nv_bfloat16*>(y.data_ptr()),
+                                  static_cast<nv_bfloat16*>(x.data_ptr()),
+                                  static_cast<nv_bfloat16*>(w.data_ptr()),
+                                  indicies.data_ptr<int64_t>(), h_in, h_out, B,
+                                  num_layers, layer_idx, scale);
+          break;
+        default:
+          break;
+      }
+    }
+    TORCH_CHECK(ok, "No suitable kernel.", " h_in=", h_in, " h_out=", h_out,
+                " dtype=", x.scalar_type());
+  }
+} // namespace punica 
+
+namespace triteia {
 const int ERR_PROB_SHAPE = 1;
 const int ERR_KERN_SHAPE = 2;
 int triteia_cuda_bmm_2_4(const void *A, const void *B, const void *meta,
@@ -262,8 +340,9 @@ void batched_rotary_embedding(torch::Tensor &positions, torch::Tensor &query,
 }  // namespace vllm
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("sgmv_cutlass", &triteia::dispatch_sgmv_cutlass, "");
+  m.def("sgmv_cutlass", &punica::dispatch_sgmv_cutlass, "");
   m.def("sgmv_cutlass_tmp_size", &sgmv_tmp_size, "");
+  m.def("dispatch_bgmv", &punica::dispatch_bgmv, "dispatch_bgmv");
   m.def("mul_2_4", &marlin::mul_2_4,
         "Marlin FP16xINT4 matmul with 2:4 sparsity.");
   m.def("bmm_2_4", &triteia::bmm_2_4, "FP16xINT4 bmm with 2:4 sparsity.");

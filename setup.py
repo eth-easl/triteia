@@ -71,6 +71,7 @@ setup(
             [
                 "triteia/csrc/ops/ops.cpp",
                 "triteia/csrc/ops/sgmv.cu",
+                "triteia/csrc/ops/bgmv_all.cu",
                 "triteia/csrc/ops/marlin_nm.cu",
                 "triteia/csrc/ops/triteia_nm_bmm.cu",
                 "triteia/csrc/ops/triteia_nm_sbmm.cu",
@@ -87,7 +88,8 @@ setup(
                 ]
             },
             extra_link_args=["-lcudadevrt", "-lcudart"],
-            include_dirs=[str(pathlib.Path(__file__).parent.resolve() / "3rdparty/cutlass/include")],
+            include_dirs=[str(pathlib.Path(__file__).parent.resolve() / "3rdparty/cutlass/include"),
+                          str(pathlib.Path(__file__).parent.resolve() / "3rdparty/flashinfer/include")],
         ),
     ],
     cmdclass={"build_ext": cpp_extension.BuildExtension},
