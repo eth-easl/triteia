@@ -54,7 +54,7 @@ def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
 
   x_sbmm = x[mask_sbmm]
   y_sbmm = y[mask_sbmm]
-  indices_sbmm = indices[mask_sbmm]
+  indices_sbmm = indices[mask_sbmm] - M
 
   unique_sbmm_indices, counts = torch.unique_consecutive(indices_sbmm, return_counts=True)
   if len(unique_sbmm_indices) == 1:
@@ -105,5 +105,5 @@ def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
       y_sbmm += output
   
   y[mask_sbmm] = y_sbmm
-  
+
   return y
