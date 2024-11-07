@@ -53,7 +53,7 @@ class TestLORAOp(unittest.TestCase):
             native_lora_output = lora_bgmv(LwA, LwB, x_lora, indices_lora, base_weight=None)
 
             # calculate the sbmm result
-            x_sbmm = torch.randn((nr, n), dtype=torch.float16, device=dev)
+            x_sbmm = torch.randn((nr_sbmm, n), dtype=torch.float16, device=dev)
             weight_ref, qweight, scale, meta = gen_batched_sparse_quant4_NT(
                 nm_sbmm, m, n, groupsize=groupsize, device=dev
             )
@@ -66,7 +66,9 @@ class TestLORAOp(unittest.TestCase):
 
             # calculate the ldmm result
             x = torch.cat((x_lora, x_sbmm), 0)
-            indices = torch.cat((indices_lora, indices_sbmm[(x_sbmm != -1)] + nm_lora), 0)
+            # add number of lora models to the sbmm indices that are not -1
+            indices_sbmm[indices_sbmm != -1] += nm_lora
+            indices = torch.cat((indices_lora, indices_sbmm), 0)
             ldmm_output = ldmm(indices, x, LwA, LwB, qweight, meta, scale, base_weight=None)
             
             # Tolerances from punica
@@ -84,7 +86,7 @@ class TestLORAOp(unittest.TestCase):
                 for j in range(min(mask.shape[1], 100)):
                     if not mask[i, j]:
                         diff = native_output[i, j] - ldmm_output[i, j]
-                        print(f"Index ({i}, {j}): native_output = {native_output[i, j]}, bgvm_output = {ldmm_output[i, j]}, difference = {diff}")
+                        print(f"Index ({i}, {j}): native_output = {native_output[i, j]}, ldmm_output = {ldmm_output[i, j]}, difference = {diff}")
 
         except torch.cuda.OutOfMemoryError as e:
             print(f"Out of memory, skipping nr={nr}, nm_lora={nm_lora}, nm_sbmm={nm_sbmm}, m={m}, n={n}, rank={rank}")
@@ -93,10 +95,9 @@ class TestLORAOp(unittest.TestCase):
 
     def test_tiny(self):
         # the rank needs to be divisble by 8
-        # TODO: pass correct arguments, check arguments
-        rank = 64
-        self.run_problem("uniform",  10,  5, 768, 768, rank)
-        self.run_problem("zipf:1.5", 128, 2, 4096, 12288, rank)
+        rank = 16
+        self.run_problem("uniform",  10, 5, 5, 768, 768, rank)
+        self.run_problem("zipf:1.5", 128, 2, 2, 4096, 12288, rank)
 
     # def test_llama(self):
     #     nrs = [16, 32, 64, 128, 256]
