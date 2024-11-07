@@ -53,6 +53,3 @@ def to_float8(x, dtype=torch.float8_e4m3fn):
     # Return both float8 data and the inverse scale (as float),
     # as both required as inputs to torch._scaled_mm
     return x_scl_sat.to(dtype), scale.float().reciprocal()
-
-
-def fp8_linear(x_fp16, w_data, w_scale, dtype, out_dtype=torch.bfloat16):
