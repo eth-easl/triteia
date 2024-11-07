@@ -9,7 +9,7 @@ from .matmul.sbmm import (
 from .utils.sparsity import mask_creator
 from .utils.generator import gen_sparse_quant4_NT, gen_batched_sparse_quant4_NT
 from .attention.sdpa import sdpa
-from .matmul.fp8 import FP8Linear, patch_module_recursive, to_float8
+from .matmul.fp8 import FP8Linear, patch_module_recursive, to_float8, mixed_precision_load
 
 __all__ = [
     "FP8Linear",
@@ -26,4 +26,5 @@ __all__ = [
     "sbmm_4bit_2_4_native",
     "sdpa",
     "patch_module_recursive",
+    "mixed_precision_load",
 ]
