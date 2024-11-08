@@ -4,6 +4,23 @@ import torch.nn as nn
 from .sparsity import mask_creator
 
 
+def gen_lora_16_bit(m, n, rank, device = "cuda"):
+    A = torch.randn((m, rank), dtype=torch.float16, device=device)
+    B = torch.randn((rank, n), dtype=torch.float16, device=device)
+    return A, B
+
+def gen_batched_lora_16_bit(b, m, n, rank, device = "cuda"):
+    As = []
+    Bs = []
+    for _ in range(b):
+        A, B = gen_lora_16_bit(m, n, rank, device)
+        As.append(A)
+        Bs.append(B)
+    As = torch.stack(As).to(device)
+    Bs = torch.stack(Bs).to(device)
+    return As, Bs
+
+
 def gen_sparse_quant4_NT(m, k, groupsize=-1, device="cuda", prune_n=2, prune_m=4):
     from triteia.python.nn.linear import sparse_low_precision_linear
 
