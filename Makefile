@@ -2,7 +2,7 @@ benchmark:
 	python3 ao/benchmarks/matmul.py
 	python3 ao/benchmarks/bmm.py
 test:
-	pytest meta/tests
+	pytest tests --cov=triteia --cov-report html --cov-report term --cache-clear
 format:
 	python3 -m black . --exclude 3rdparty
 install:
