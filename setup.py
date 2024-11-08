@@ -5,6 +5,21 @@ import os
 from setuptools import find_packages, setup
 from torch.utils import cpp_extension
 
+import pathlib
+def remove_unwanted_pytorch_nvcc_flags():
+    REMOVE_NVCC_FLAGS = [
+        "-D__CUDA_NO_HALF_OPERATORS__",
+        "-D__CUDA_NO_HALF_CONVERSIONS__",
+        "-D__CUDA_NO_BFLOAT16_CONVERSIONS__",
+        "-D__CUDA_NO_HALF2_OPERATORS__",
+    ]
+    for flag in REMOVE_NVCC_FLAGS:
+        try:
+            cpp_extension.COMMON_NVCC_FLAGS.remove(flag)
+        except ValueError:
+            pass
+
+remove_unwanted_pytorch_nvcc_flags()
 
 def get_compute_capability():
     forced_cap = os.environ.get("TRITEIA_COMPUTE_CAP", None)
@@ -69,6 +84,8 @@ setup(
             "triteia_cuda",
             [
                 "triteia/csrc/ops/ops.cpp",
+                "triteia/csrc/ops/sgmv.cu",
+                "triteia/csrc/ops/bgmv_all.cu",
                 "triteia/csrc/ops/marlin_nm.cu",
                 "triteia/csrc/ops/triteia_nm_bmm.cu",
                 "triteia/csrc/ops/triteia_nm_sbmm.cu",
@@ -85,6 +102,8 @@ setup(
                 ]
             },
             extra_link_args=["-lcudadevrt", "-lcudart"],
+            include_dirs=[str(pathlib.Path(__file__).parent.resolve() / "3rdparty/cutlass/include"),
+                          str(pathlib.Path(__file__).parent.resolve() / "3rdparty/flashinfer/include")],
         ),
     ],
     cmdclass={"build_ext": cpp_extension.BuildExtension},
