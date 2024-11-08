@@ -1,11 +1,11 @@
-"""Python setup.py for triteia package"""
-
 import io
 import os
 from setuptools import find_packages, setup
 from torch.utils import cpp_extension
 
 import pathlib
+
+
 def remove_unwanted_pytorch_nvcc_flags():
     REMOVE_NVCC_FLAGS = [
         "-D__CUDA_NO_HALF_OPERATORS__",
@@ -19,7 +19,9 @@ def remove_unwanted_pytorch_nvcc_flags():
         except ValueError:
             pass
 
+
 remove_unwanted_pytorch_nvcc_flags()
+
 
 def get_compute_capability():
     forced_cap = os.environ.get("TRITEIA_COMPUTE_CAP", None)
@@ -71,7 +73,7 @@ if compute_cap is None:
 setup(
     name="triteia",
     version=read("triteia", "VERSION"),
-    description="Fast GPU Kernels",
+    description="Useful GPU Kernels for ML",
     url="https://github.com/eth-easl/triteia/",
     long_description=read("README.md"),
     long_description_content_type="text/markdown",
@@ -102,8 +104,15 @@ setup(
                 ]
             },
             extra_link_args=["-lcudadevrt", "-lcudart"],
-            include_dirs=[str(pathlib.Path(__file__).parent.resolve() / "3rdparty/cutlass/include"),
-                          str(pathlib.Path(__file__).parent.resolve() / "3rdparty/flashinfer/include")],
+            include_dirs=[
+                str(
+                    pathlib.Path(__file__).parent.resolve() / "3rdparty/cutlass/include"
+                ),
+                str(
+                    pathlib.Path(__file__).parent.resolve()
+                    / "3rdparty/flashinfer/include"
+                ),
+            ],
         ),
     ],
     cmdclass={"build_ext": cpp_extension.BuildExtension},
