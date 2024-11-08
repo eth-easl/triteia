@@ -31,16 +31,17 @@ class FP8Linear(nn.Module):
     def forward(self, x: torch.Tensor):
         # if x has 3 dimensions, squeeze the first dimension
         if x.dim() == 3:
+            if x.size(0) != 1:
+                raise ValueError("Expected input to have a batch size of 1")
             x = x.squeeze(0)
         dtype = torch.float8_e4m3fn
         x_f8, x_inv_s = to_float8(x, dtype=dtype)
-        print(f"self.scale: {self.scale.dtype}, self.weight: {self.weight.dtype}")
         y, _ = torch._scaled_mm(
             x_f8,
             self.weight,
-            out_dtype=torch.float16,
+            out_dtype=torch.bfloat16,
             scale_a=x_inv_s,
-            scale_b=self.scale.to(torch.float32)
+            scale_b=self.scale
         )
         if x.dim() == 3:
             y = y.unsqueeze(0)
@@ -48,6 +49,8 @@ class FP8Linear(nn.Module):
 
 def patch_module_recursive(model: nn.Module, ignore_keys: list = [], verbose: bool = True):
     for n, module in model.named_children():
+        if any([k in n for k in ignore_keys]):
+            return
         if len(list(module.children())) > 0:
             patch_module_recursive(module, verbose=verbose)
         if type(module) == nn.Linear and n not in ignore_keys:
