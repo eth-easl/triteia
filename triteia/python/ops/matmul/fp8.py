@@ -6,6 +6,30 @@ from triteia.python.utils import vprint
 from triteia.python.configs import precisions
 
 
+def fp8_mm(
+    x: torch.Tensor, w_f8: torch.Tensor, scale_b: torch.Tensor, out_dtype=torch.float16
+):
+    needs_reshape = False
+
+    if x.dim() == 3:
+        needs_reshape = True
+        if x.size(0) != 1:
+            raise ValueError("Expected input to have a batch size of 1")
+        x = x.squeeze(0)
+
+    x_f8, x_inv_s = to_float8(x, dtype=w_f8.dtype)
+    y = torch._scaled_mm(
+        x_f8,
+        w_f8,
+        out_dtype=out_dtype,
+        scale_a=x_inv_s,
+        scale_b=scale_b,
+    )
+    if needs_reshape:
+        y = y.unsqueeze(0)
+    return y
+
+
 class FP8Linear(nn.Module):
     def __init__(
         self,
@@ -36,44 +60,8 @@ class FP8Linear(nn.Module):
 
     def forward(self, x: torch.Tensor):
         # if x has 3 dimensions, squeeze the first dimension
-        if x.dim() == 3:
-            if x.size(0) != 1:
-                raise ValueError("Expected input to have a batch size of 1")
-            x = x.squeeze(0)
-        x_f8, x_inv_s = to_float8(x, dtype=self.dtype)
-        print(
-            f"scale_a: {x_inv_s.dtype}, scale_b: {self.scale.dtype}, weight: {self.weight.dtype}"
-        )
-        y = torch._scaled_mm(
-            x_f8,
-            self.weight.T,
-            out_dtype=torch.bfloat16,
-            scale_a=x_inv_s,
-            scale_b=self.scale.float(),
-        )
-        if x.dim() == 3:
-            y = y.unsqueeze(0)
+        y = fp8_mm(x, self.weight.T, self.scale, out_dtype=torch.bfloat16)
         return y
-
-
-def fp8_mm(
-    x: torch.Tensor, w_f8: torch.Tensor, scale_b: torch.Tensor, out_dtype=torch.float16
-):
-    if x.dim() == 3:
-        if x.size(0) != 1:
-            raise ValueError("Expected input to have a batch size of 1")
-        x = x.squeeze(0)
-    x_f8, x_inv_s = to_float8(x, dtype=torch.float8_e4m3fn)
-    y = torch._scaled_mm(
-        x_f8,
-        w_f8,
-        out_dtype=torch.bfloat16,
-        scale_a=x_inv_s,
-        scale_b=scale_b,
-    )
-    if x.dim() == 3:
-        y = y.unsqueeze(0)
-    return y
 
 
 def patch_module_recursively(
@@ -86,7 +74,7 @@ def patch_module_recursively(
                 module, new_module_name, ignore_keys=ignore_keys, verbose=verbose
             )
 
-        if any([k in n for k in ignore_keys]):
+        if any([k in new_module_name for k in ignore_keys]):
             pass
 
         elif type(module) == nn.Linear and n not in ignore_keys:
