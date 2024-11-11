@@ -3,14 +3,7 @@
 import torch
 import torch.nn as nn
 from triteia.python.utils import vprint
-
-precision = {
-    "fp8_e4m3": torch.float8_e4m3fn,
-    "fp8_e5m2": torch.float8_e5m2,
-    "bf16": torch.bfloat16,
-    "fp32": torch.float32,
-    "fp16": torch.float16,
-}
+from triteia.python.configs import precisions
 
 
 class FP8Linear(nn.Module):
@@ -22,15 +15,24 @@ class FP8Linear(nn.Module):
         bias_dtype: torch.dtype,
         bias: bool = False,
     ) -> None:
+        """Forward-only Linear layer with FP8 weights and BFloat16 bias"""
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.weight = nn.Parameter(
-            torch.zeros((out_features, in_features), dtype=weight_dtype)
+            torch.zeros((out_features, in_features), dtype=weight_dtype),
+            requires_grad=False,
         )
-        self.scale = nn.Parameter(torch.zeros((), dtype=torch.float32))
+        self.scale = nn.Parameter(
+            torch.zeros((), dtype=torch.float32),
+            requires_grad=False,
+        )
         if bias:
-            self.bias = nn.Parameter(torch.zeros((out_features), dtype=bias_dtype))
+            self.bias = nn.Parameter(
+                torch.zeros((out_features), dtype=bias_dtype),
+                requires_grad=False,
+            )
+        self.dtype = torch.float8_e4m3fn
 
     def forward(self, x: torch.Tensor):
         # if x has 3 dimensions, squeeze the first dimension
@@ -38,31 +40,58 @@ class FP8Linear(nn.Module):
             if x.size(0) != 1:
                 raise ValueError("Expected input to have a batch size of 1")
             x = x.squeeze(0)
-        dtype = torch.float8_e4m3fn
-        x_f8, x_inv_s = to_float8(x, dtype=dtype)
-        y, _ = torch._scaled_mm(
+        x_f8, x_inv_s = to_float8(x, dtype=self.dtype)
+        print(
+            f"scale_a: {x_inv_s.dtype}, scale_b: {self.scale.dtype}, weight: {self.weight.dtype}"
+        )
+        y = torch._scaled_mm(
             x_f8,
             self.weight.T,
             out_dtype=torch.bfloat16,
             scale_a=x_inv_s,
-            scale_b=self.scale,
+            scale_b=self.scale.float(),
         )
         if x.dim() == 3:
             y = y.unsqueeze(0)
         return y
 
 
+def fp8_mm(
+    x: torch.Tensor, w_f8: torch.Tensor, scale_b: torch.Tensor, out_dtype=torch.float16
+):
+    if x.dim() == 3:
+        if x.size(0) != 1:
+            raise ValueError("Expected input to have a batch size of 1")
+        x = x.squeeze(0)
+    x_f8, x_inv_s = to_float8(x, dtype=torch.float8_e4m3fn)
+    y = torch._scaled_mm(
+        x_f8,
+        w_f8,
+        out_dtype=torch.bfloat16,
+        scale_a=x_inv_s,
+        scale_b=scale_b,
+    )
+    if x.dim() == 3:
+        y = y.unsqueeze(0)
+    return y
+
+
 def patch_module_recursively(
-    model: nn.Module, ignore_keys: list = [], verbose: bool = True
+    model: nn.Module, module_name="", ignore_keys: list = [], verbose: bool = True
 ):
     for n, module in model.named_children():
+        new_module_name = f"{module_name}.{n}"
         if len(list(module.children())) > 0:
-            patch_module_recursively(module, ignore_keys=ignore_keys, verbose=verbose)
+            patch_module_recursively(
+                module, new_module_name, ignore_keys=ignore_keys, verbose=verbose
+            )
+
         if any([k in n for k in ignore_keys]):
             pass
+
         elif type(module) == nn.Linear and n not in ignore_keys:
             vprint(
-                f"Patching {n} from {type(module)} to FP8Linear, {type(module)}",
+                f"Patching {module_name} from {type(module)} to FP8Linear, {type(module)}",
                 verbose,
             )
             setattr(
