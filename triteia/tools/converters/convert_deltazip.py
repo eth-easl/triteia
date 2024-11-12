@@ -11,7 +11,6 @@ from triteia.python.configs.models.llama import (
     uncompressed_row_chunking_modules,
     pack_modules,
 )
-from triteia.python.nn.linear import sparse_low_precision_linear
 from triteia.python.ops.utils.generator import torch_weight_to_sparse_marlin
 
 
@@ -149,4 +148,4 @@ if __name__ == "__main__":
 
     print("Converting model...")
     new_tensors = convert_model(args, verbose=True)
-    # save_tensors(new_tensors, args.save_path)
+    save_tensors(new_tensors, args.save_path)

@@ -62,22 +62,31 @@ class TestSBMMOp(unittest.TestCase):
         except torch.cuda.OutOfMemoryError as e:
             print(f"Out of memory, skipping nr={nr}, nm={nm}, m={m}, k={k}")
         finally:
-            torch.cuda.empty_cache()
+            pass
+            # torch.cuda.empty_cache()
 
     def test_tiny(self):
-        self.run_problem("uniform",  10,  5, 256,  256)
-        self.run_problem("zipf:1.5", 128, 2, 4096, 12288)
+        for i in range(20):
+            self.run_problem("uniform", 10, 5, 256, 512)
+            self.run_problem("zipf:1.5", 128, 2, 4096, 12288)
 
-    # def test_llama(self):
-    #     nrs = [16, 32, 64, 128, 256]
-    #     nms = [[2,4,8,16], [2,4,8,16,32], [2,4,8,16,32,64], [2,4,8,16,32,64,128], [2,4,8,16,32,64,128,256]]
-    #     distributions = ["uniform", "zipf:1.5"]
-    #     for _, layers in llama_shapes.items():
-    #         for layer in layers:
-    #             for nr_id, nr in enumerate(nrs):
-    #                 for nm_id, nm in enumerate(nms[nr_id]):
-    #                     for distribution in distributions:
-    #                         self.run_problem(distribution, nr, nm, layer[0], layer[1])
+    def test_llama(self):
+        nrs = [8, 16, 32, 64, 128, 256]
+        nms = [
+            [1, 2, 3, 4, 5, 6, 7, 8],
+            [2, 4, 8, 16],
+            [2, 4, 8, 16, 32],
+            [2, 4, 8, 16, 32, 64],
+            [2, 4, 8, 16, 32, 64, 128],
+            [2, 4, 8, 16, 32, 64, 128, 256],
+        ]
+        distributions = ["uniform", "zipf:1.5"]
+        for _, layers in llama_shapes.items():
+            for layer in layers:
+                for nr_id, nr in enumerate(nrs):
+                    for nm_id, nm in enumerate(nms[nr_id]):
+                        for distribution in distributions:
+                            self.run_problem(distribution, nr, nm, layer[0], layer[1])
 
 
 if __name__ == "__main__":

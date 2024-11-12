@@ -93,10 +93,8 @@ def sbmm_4bit_2_4_native(qweights, xs, metas, ss, indices, base_weight=None):
         y = torch.zeros(xs.shape[0], ss.shape[2], dtype=xs.dtype, device=xs.device)
     if torch.all(indices == -1):
         return y
-
     unique_indices, counts = torch.unique_consecutive(indices, return_counts=True)
     if len(unique_indices) == 1:
-        # use a normal matmul
         workspace = torch.zeros(
             y.shape[1] // 128 * 16, device=xs.device, dtype=torch.int32
         )
@@ -127,7 +125,7 @@ def sbmm_4bit_2_4_native(qweights, xs, metas, ss, indices, base_weight=None):
             len(unique_indices), y.shape[1] // 8, device=xs.device, dtype=torch.int32
         )
         output = torch.zeros(
-            (xs.shape[0], y.shape[1]), dtype=torch.float16, device=xs.device
+            (xs.shape[0], ss.shape[2]), dtype=torch.float16, device=xs.device
         )
         sbmm_2_4(
             xs,

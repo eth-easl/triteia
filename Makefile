@@ -9,3 +9,5 @@ install:
 	pip3 install -e .
 build-whl:
 	python -m build --no-isolation
+build-whl-container:
+	bash scripts/build_whl.sh

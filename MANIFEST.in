@@ -3,5 +3,6 @@ include HISTORY.md
 include Containerfile
 include requirements.txt
 include requirements-dev.txt
+include *.so
 graft tests
 graft triteia
