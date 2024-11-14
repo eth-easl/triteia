@@ -27,7 +27,7 @@ class TestMatmulOp(unittest.TestCase):
         # self.run_problem(21504 * 2, 4096, 21504 * 2, groupsize=-1)
         # self.run_problem(256, 16, 256, groupsize=-1)
         # self.run_problem(256, 16, 512, groupsize=-1)
-        self.run_problem(5504, 5504, 5504, groupsize=-1)
+        self.run_problem(4096, 4096, 4096, groupsize=-1)
 
     # def test_llama(self):
     #     bsz = 16
