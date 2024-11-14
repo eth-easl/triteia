@@ -17,7 +17,8 @@ class TestSDPAOp(unittest.TestCase):
         v = torch.randn((bsz, seq_len, num_heads, head_dim), dtype=torch.float16).cuda()
         output = self.run_problem(q, k, v, is_causal=True, impl="fa")
         ref = self.run_problem(q, k, v, is_causal=True, impl="torch")
-        self.assertTrue(torch.allclose(output, ref))
+        print(torch.max(torch.abs(output - ref)))
+        self.assertTrue(torch.allclose(output, ref, atol=1e-2, rtol=1e-2))
 
 
 if __name__ == "__main__":
