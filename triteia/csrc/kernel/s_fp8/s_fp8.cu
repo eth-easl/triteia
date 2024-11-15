@@ -145,6 +145,7 @@ using CollectiveMainloopRef = typename cutlass::gemm::collective::CollectiveBuil
     ElementA, LayoutTagA, AlignmentA,
     ElementB, LayoutTagB, AlignmentB,
     ElementAccumulator,
+
     TileShapeRef, ClusterShape,
     cutlass::gemm::collective::StageCountAutoCarveout<
       static_cast<int>(sizeof(typename CollectiveEpilogue::SharedStorage))>,
@@ -593,4 +594,3 @@ int main(int argc, char const **args) {
   return EXIT_SUCCESS;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////
