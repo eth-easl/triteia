@@ -14,3 +14,6 @@ pytest-html
 pytest-console-scripts
 buildkite-test-collector
 pre-commit
+matplotlib
+seaborn
+font-roboto
