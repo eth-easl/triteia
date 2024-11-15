@@ -14,8 +14,8 @@ from triteia.python.utils import (
 # We compute y += A*(B*x), where x is the input vector of size n
 # and y is the ouptut vector of size y = m
 # This is done for nr inputs
-# TODO: include flops of sbmm
-flops_func = lambda nr, n, m, rank: nr * (m*(2*rank - 1) + rank*(2*n -1) + m)
+# We also add the number of flops for the nr_sbmm inputs
+flops_func = lambda nr_sbmm, nr_lora, n, m, rank: nr_lora * (m*(2*rank - 1) + rank*(2*n -1) + m) + 2 * nr_sbmm * m * n
 
 def benchmark(distribution, nr_lora, nr_sbmm, nm_lora, nm_sbmm, m, n, rank, groupsize=-1, dev="cuda"):
     indices_lora = generate_model_distribution(distribution, nr_lora, nm_lora)
@@ -45,36 +45,38 @@ def benchmark(distribution, nr_lora, nr_sbmm, nm_lora, nm_sbmm, m, n, rank, grou
         native_lora_output = lora_bgmv(As, Bs, x_lora, indices_lora, base_weight=None)
         return torch.cat((native_lora_output, native_sbmm_output), 0)
 
-    def ldmm(As, Bs, qweight, scale, meta, x, indices):
+    def ldmm_bench(As, Bs, qweight, scale, meta, x, indices):
         return ldmm(indices, x, As, Bs, qweight, meta, scale, base_weight=None)
     
-    native_result = timing_function(
-        native,
-        flops_func,
-        kwargs={
-            "dist": distribution,
-            "nr": nr,
-            "n": n,
-            "m": m,
-            "rank": rank,
-            "As": As,
-            "Bs": Bs,
-            "qweight": qweight,
-            "scale": scale,
-            "meta": meta,
-            "x_lora": x_lora,
-            "x_sbmm": x_sbmm,
-            "indices_lora": indices_lora,
-            "indices_sbmm": indices_sbmm
-        },
-        repeats=5,
-    )
+    # native_result = timing_function(
+    #     native,
+    #     flops_func,
+    #     kwargs={
+    #         "dist": distribution,
+    #         "nr_lora": nr_lora,
+    #         "nr_sbmm": nr_sbmm,
+    #         "n": n,
+    #         "m": m,
+    #         "rank": rank,
+    #         "As": As,
+    #         "Bs": Bs,
+    #         "qweight": qweight,
+    #         "scale": scale,
+    #         "meta": meta,
+    #         "x_lora": x_lora,
+    #         "x_sbmm": x_sbmm,
+    #         "indices_lora": indices_lora,
+    #         "indices_sbmm": indices_sbmm
+    #     },
+    #     repeats=5,
+    # )
     ldmm_result = timing_function(
-        ldmm,
+        ldmm_bench,
         flops_func,
         kwargs={
             "dist": distribution,
-            "nr": nr,
+            "nr_lora": nr_lora,
+            "nr_sbmm": nr_sbmm,
             "n": n,
             "m": m,
             "rank": rank,
@@ -88,9 +90,8 @@ def benchmark(distribution, nr_lora, nr_sbmm, nm_lora, nm_sbmm, m, n, rank, grou
         },
         repeats=5,
     )
-    results = [native_result, ldmm_result]
-    #TODO: change printout
-    print_results_table(f"lora nr={nr},nm={nm},m={m}, n={n}, rank={rank}", results)
+    results = [ldmm_result]
+    print_results_table(f"lora nr={nr_lora},nm={nm_lora},m={m}, n={n}, rank={rank}", results)
     return results
 
 
@@ -98,25 +99,26 @@ if __name__ == "__main__":
     results = []
     nr = [100]
     nm = [
-        [2, 4, 8, 16, 32, 64, 100],
+        [1, 1, 2, 4, 8, 16, 32, 64, 100],
     ]
     distributions = ["zipf:2.0"]
-    ms = [2048]
-    ns = [2048]
+    ms = [4096]
+    ns = [4096, 8192]
     ranks = [32]
-    for distribution in distributions:
-        for i in range(len(nr)):
-            for j in range(len(nm[i])):
-                for m in ms:
-                    for n in ns:
-                        for rank in ranks:
+    for rank in ranks:
+        for distribution in distributions:
+            for i in range(len(nr)):
+                for j in range(len(nm[i])):
+                    for m in ms:
+                        for n in ns:
+                            # same number of lora and sbmm models
                             try:
                                 results.append(
-                                    benchmark(distribution, nr[i], nm[i][j], m, n, rank)
+                                    benchmark(distribution, nr[i], nr[i], nm[i][j], nm[i][j], m, n, rank)
                                 )
                             except Exception as e:
                                 print(
                                     f"Failed to benchmark lora nr={nr[i]},nm={nm[i][j]},m={m},n={n},rank={rank}"
                                 )
                                 print(e)
-    export_benchmark_results(results, ".local/lora_bench.json")
+    export_benchmark_results(results, ".local/ldmm_bench.json")
