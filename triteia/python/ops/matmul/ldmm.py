@@ -2,6 +2,45 @@ import torch
 from triteia.python.capi import add_lora_bgmv
 from triteia.python.capi import sbmm_2_4
 from triteia.python.capi import mul_2_4
+from triteia.python.ops import sbmm_4bit_2_4_forloop, lora_forloop
+
+def baseline_ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
+
+    if base_weight is not None:
+        y = torch.matmul(x, base_weight.t())
+    else:
+        y = torch.zeros(x.shape[0], LwB.shape[2], dtype=x.dtype, device=x.device)
+    if torch.all(indices == -1):
+        return y
+
+    M = LwA.shape[0]
+    N = DeltaW.shape[0]
+
+    mask_lora = (indices < M) & (indices != -1)
+    mask_sbmm = (indices >= M) & (indices != -1)
+
+    # ================== lora calculation ===============================
+
+    x_lora = x[mask_lora]
+    y_lora = y[mask_lora]
+    indices_lora = indices[mask_lora]
+    indices_lora = indices_lora.to(torch.long)
+
+    y_lora = lora_forloop(LwA, LwB, x_lora, indices_lora)
+    y[mask_lora] = y_lora
+
+     # ================== sbmm calculation ===============================
+
+    x_sbmm = x[mask_sbmm]
+    y_sbmm = y[mask_sbmm]
+    indices_sbmm = indices[mask_sbmm] - M
+    y_sbmm = sbmm_4bit_2_4_forloop(DeltaW, x_sbmm, metas, ss, indices_sbmm)
+    y[mask_sbmm] = y_sbmm
+
+    return y
+
+
+
 
 def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
     """

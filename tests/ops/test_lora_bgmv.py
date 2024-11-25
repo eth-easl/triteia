@@ -24,7 +24,6 @@ class TestLORAOp(unittest.TestCase):
         n: int,
         rank: int,
         with_base_weight=False,
-        groupsize=-1,
         dev="cuda",
     ):
         try:
