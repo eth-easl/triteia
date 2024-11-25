@@ -48,28 +48,27 @@ def benchmark(distribution, nr_lora, nr_sbmm, nm_lora, nm_sbmm, m, n, rank, grou
     def ldmm_bench(As, Bs, qweight, scale, meta, x, indices):
         return ldmm(indices, x, As, Bs, qweight, meta, scale, base_weight=None)
     
-    # native_result = timing_function(
-    #     native,
-    #     flops_func,
-    #     kwargs={
-    #         "dist": distribution,
-    #         "nr_lora": nr_lora,
-    #         "nr_sbmm": nr_sbmm,
-    #         "n": n,
-    #         "m": m,
-    #         "rank": rank,
-    #         "As": As,
-    #         "Bs": Bs,
-    #         "qweight": qweight,
-    #         "scale": scale,
-    #         "meta": meta,
-    #         "x_lora": x_lora,
-    #         "x_sbmm": x_sbmm,
-    #         "indices_lora": indices_lora,
-    #         "indices_sbmm": indices_sbmm
-    #     },
-    #     repeats=5,
-    # )
+    ldmm_warmup = timing_function(
+        ldmm_bench,
+        flops_func,
+        kwargs={
+            "dist": distribution,
+            "nr_lora": nr_lora,
+            "nr_sbmm": nr_sbmm,
+            "n": n,
+            "m": m,
+            "rank": rank,
+            "As": As,
+            "Bs": Bs,
+            "qweight": qweight,
+            "scale": scale,
+            "meta": meta,
+            "x": x_ldmm,
+            "indices": indices_ldmm
+        },
+        repeats=1,
+    )
+
     ldmm_result = timing_function(
         ldmm_bench,
         flops_func,
