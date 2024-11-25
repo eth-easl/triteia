@@ -16,7 +16,9 @@ def timing_function(func, flops_func, kwargs, repeats=1):
         flops_func_args = {
             arg: kwargs[arg] for arg in flops_func_args_names if arg in kwargs
         }
-    elapseds = []
+
+    # store individual measurements
+    measurements = {"elapsed":[], "perf_flops":[], "mfu": []}
 
     for i in range(repeats):
         torch.cuda.synchronize()
@@ -27,9 +29,18 @@ def timing_function(func, flops_func, kwargs, repeats=1):
         end.record()
         torch.cuda.synchronize()
         elapsed = start.elapsed_time(end)
-        elapseds.append(elapsed)
+        measurements["elapsed"].append(elapsed)
+        
+        if flops_func:
+            total_flops = flops_func(**flops_func_args)
+            perf_flops = (total_flops / elapsed) / 1e6  # Convert to GFLOPS/s
+            measurements["perf_flops"].append(perf_flops)
+            
+            if gpu_info:
+                mfu = 100 * (total_flops / elapsed) / 1e9 / gpu_info["fp16_tflops"]
+                measurements["mfu"].append(mfu)
 
-    elapsed = sum(elapseds) / repeats
+    elapsed = sum(measurements["elapsed"]) / repeats
 
     if flops_func:
         total_flops = flops_func(**flops_func_args)  # FLOPS
@@ -46,6 +57,7 @@ def timing_function(func, flops_func, kwargs, repeats=1):
         "perf_flops": perf_flops / 1e6 if flops_func else None,  # GFLOPS/s
         "mfu": mfu if flops_func and gpu_info else None,
         "args": kwargs,
+        "measurements": measurements
     }
 
 
