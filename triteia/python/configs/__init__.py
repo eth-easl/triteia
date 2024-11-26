@@ -1,4 +1,5 @@
 import torch
+from .gpus.specs import *
 
 precisions = {
     "fp8_e4m3": torch.float8_e4m3fn,

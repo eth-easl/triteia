@@ -6,7 +6,7 @@ from triteia.python.utils import vprint
 from triteia.python.configs import precisions
 
 
-def fp8_mm(
+def fp8_scaled_mm(
     x: torch.Tensor, w_f8: torch.Tensor, scale_b: torch.Tensor, out_dtype=torch.float16
 ):
     needs_reshape = False

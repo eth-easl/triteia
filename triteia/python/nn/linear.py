@@ -12,6 +12,7 @@ from triteia.python.ops.utils.sparsity import (
     mask_creator,
     sparse_semi_structured_from_dense_cutlass,
 )
+from triteia.python.ops import fp8_scaled_mm
 
 
 class sparse_low_precision_linear(nn.Module):
@@ -170,5 +171,5 @@ class FP8Linear(nn.Module):
 
     def forward(self, x: torch.Tensor):
         # if x has 3 dimensions, squeeze the first dimension
-        y = fp8_mm(x, self.weight.T, self.scale, out_dtype=torch.bfloat16)
+        y = fp8_scaled_mm(x, self.weight.T, self.scale, out_dtype=torch.bfloat16)
         return y
