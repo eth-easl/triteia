@@ -12,6 +12,7 @@ from triteia.python.ops.utils.sparsity import (
     mask_creator,
     sparse_semi_structured_from_dense_cutlass,
 )
+from triteia.python.ops import fp8_scaled_mm
 
 
 class sparse_low_precision_linear(nn.Module):
@@ -138,3 +139,37 @@ class sparse_low_precision_linear(nn.Module):
         self.B[:, :] = q.to(self.B.device)
         self.s[:, :] = s.to(self.s.device)
         self.meta[:, :] = meta.to(self.meta.device)
+
+
+class FP8Linear(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        weight_dtype: torch.dtype,
+        bias_dtype: torch.dtype,
+        bias: bool = False,
+    ) -> None:
+        """Forward-only Linear layer with FP8 weights and BFloat16 bias"""
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = nn.Parameter(
+            torch.zeros((out_features, in_features), dtype=weight_dtype),
+            requires_grad=False,
+        )
+        self.scale = nn.Parameter(
+            torch.zeros((), dtype=torch.float32),
+            requires_grad=False,
+        )
+        if bias:
+            self.bias = nn.Parameter(
+                torch.zeros((out_features), dtype=bias_dtype),
+                requires_grad=False,
+            )
+        self.dtype = torch.float8_e4m3fn
+
+    def forward(self, x: torch.Tensor):
+        # if x has 3 dimensions, squeeze the first dimension
+        y = fp8_scaled_mm(x, self.weight.T, self.scale, out_dtype=torch.bfloat16)
+        return y
