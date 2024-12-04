@@ -20,6 +20,7 @@ flops_func = lambda nr_sbmm, nr_lora, n, m, rank: nr_lora * (m*(2*rank - 1) + ra
 def benchmark(distribution, nr_lora, nr_sbmm, nm_lora, nm_sbmm, m, n, rank, groupsize=-1, dev="cuda"):
     indices_lora = generate_model_distribution(distribution, nr_lora, nm_lora)
     indices_sbmm = generate_model_distribution(distribution, nr_sbmm, nm_sbmm)
+
     indices_lora = torch.sort(indices_lora)[0]
     indices_sbmm = torch.sort(indices_sbmm)[0]
     x_lora = torch.randn((nr_lora, n), dtype=torch.float16, device=dev)
@@ -34,7 +35,7 @@ def benchmark(distribution, nr_lora, nr_sbmm, nm_lora, nm_sbmm, m, n, rank, grou
         nm_lora, n, m, rank, device=dev
     )
 
-    weight_ref, qweight, scale, meta = gen_batched_sparse_quant4_NT(
+    _, qweight, scale, meta = gen_batched_sparse_quant4_NT(
         nm_sbmm, m, n, groupsize=groupsize, device=dev
     )
 
@@ -90,20 +91,27 @@ def benchmark(distribution, nr_lora, nr_sbmm, nm_lora, nm_sbmm, m, n, rank, grou
     )
     results = [ldmm_result]
     print_results_table(f"lora nr={nr_lora},nm={nm_lora},m={m}, n={n}, rank={rank}", results)
+    del As, Bs, qweight, scale, meta, x_ldmm, indices_ldmm
+    torch.cuda.empty_cache()
     return results
 
 
 if __name__ == "__main__":
     results = []
-    nr_lora = [99, 99, 90, 80, 70, 60, 50, 40, 30, 20, 10, 1]
-    nr_sbmm = [1, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 99]
+    nr_sbmm = [100, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90]
+    nr_lora = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    # nr_sbmm = [100, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90]
+    # nr_lora = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    # 
+    # nr_sbmm = [100, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90]
+    # nr_lora = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     nm = [
         [50],[50],[50],[50],[50],[50],[50],[50],[50],[50],[50],[50]
     ]
     distributions = ["zipf:2.0"]
     ms = [4096]
-    ns = [4096, 8192]
-    ranks = [32]
+    ns = [4096, 11008]
+    ranks = [64]
     for rank in ranks:
         for distribution in distributions:
             for i in range(len(nr_lora)):
