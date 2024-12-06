@@ -34,16 +34,9 @@ def benchmark(distribution, nr_lora, nr_sbmm, nm_lora, nm_sbmm, m, n, rank, grou
         nm_lora, n, m, rank, device=dev
     )
 
-    weight_ref, qweight, scale, meta = gen_batched_sparse_quant4_NT(
+    _, qweight, scale, meta = gen_batched_sparse_quant4_NT(
         nm_sbmm, m, n, groupsize=groupsize, device=dev
     )
-
-    def native(As, Bs, qweight, scale, meta, x_lora, x_sbmm, indices_lora, indices_sbmm):
-        native_sbmm_output = sbmm_4bit_2_4_native(
-            qweight, x_sbmm, meta, scale, indices_sbmm, base_weight=None
-        )
-        native_lora_output = lora_bgmv(As, Bs, x_lora, indices_lora, base_weight=None)
-        return torch.cat((native_lora_output, native_sbmm_output), 0)
 
     def ldmm_bench(As, Bs, qweight, scale, meta, x, indices):
         return ldmm(indices, x, As, Bs, qweight, meta, scale, base_weight=None)
@@ -91,6 +84,10 @@ def benchmark(distribution, nr_lora, nr_sbmm, nm_lora, nm_sbmm, m, n, rank, grou
     )
     results = [ldmm_result]
     print_results_table(f"lora nr={nr_lora},nm={nm_lora},m={m}, n={n}, rank={rank}", results)
+
+    del As, Bs, qweight, scale, meta, x_ldmm, indices_ldmm
+    torch.cuda.empty_cache()
+
     return results
 
 
@@ -98,11 +95,11 @@ if __name__ == "__main__":
     results = []
     nr = [100]
     nm = [
-        [1, 1, 2, 4, 8, 16, 32, 64],
+        [1, 2, 4, 8, 16, 32, 64, 100],
     ]
     distributions = ["zipf:2.0"]
     ms = [4096]
-    ns = [4096, 11008]
+    ns = [4096, 14336]
     ranks = [64]
     for rank in ranks:
         for distribution in distributions:
