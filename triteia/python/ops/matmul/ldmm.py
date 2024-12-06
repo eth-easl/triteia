@@ -5,7 +5,9 @@ from triteia.python.capi import mul_2_4
 from triteia.python.ops import sbmm_4bit_2_4_forloop, lora_forloop
 
 def baseline_ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
-
+    """
+    Same functionality than the ldmm kernel, just using the basic lora and sbmm loop implementations.
+    """
     if base_weight is not None:
         y = torch.matmul(x, base_weight.t())
     else:
@@ -14,7 +16,6 @@ def baseline_ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
         return y
 
     M = LwA.shape[0]
-    N = DeltaW.shape[0]
 
     mask_lora = (indices < M) & (indices != -1)
     mask_sbmm = (indices >= M) & (indices != -1)
@@ -51,6 +52,7 @@ def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
             number of sbmm models. \
             An index `i < M` represents the `i`'th lora model,\
             whereas an index `i >= M` represents the `(i-M)`'th sbmm model.
+            Indices `i == -1` means that the query is ignored and the output is 0.
         x: Shape: `[B, H1]`. A batch containing `B` query vectors of size H1.
         LwA: Shape: `[M, H1, R]`. M weight matrices of size `H1 x R`, `R` being the rank of the lora models
         LwB: Shape: `[M, R, H2]`. M weight matrices of size `R x H2`, `R` being the rank of the lora models
@@ -71,7 +73,6 @@ def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
         return y
 
     M = LwA.shape[0]
-    N = DeltaW.shape[0]
 
     mask_lora = (indices < M) & (indices != -1)
     mask_sbmm = (indices >= M) & (indices != -1)
@@ -153,5 +154,4 @@ def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
             y_sbmm += output
         
         y[mask_sbmm] = y_sbmm
-
     return y
