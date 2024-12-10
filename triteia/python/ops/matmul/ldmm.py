@@ -68,7 +68,10 @@ def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
     if base_weight is not None:
         y = torch.matmul(x, base_weight.t())
     else:
-        y = torch.zeros(x.shape[0], LwB.shape[2], dtype=x.dtype, device=x.device)
+        if LwB.shape[2] != 0:
+            y = torch.zeros(x.shape[0], LwB.shape[2], dtype=x.dtype, device=x.device)
+        else:
+            y = torch.zeros(x.shape[0], ss.shape[2], dtype=x.dtype, device=x.device)
     if torch.all(indices == -1):
         return y
 
@@ -120,6 +123,7 @@ def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
                 workspace,
             )
             y_sbmm += output
+            del workspace
         else:
             unique_sbmm_indices = unique_sbmm_indices.int()
             counts = counts.int()
@@ -152,6 +156,7 @@ def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
                 counts,
             )
             y_sbmm += output
+            del workspace
         
         y[mask_sbmm] = y_sbmm
     return y
