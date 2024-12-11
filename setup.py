@@ -1,10 +1,8 @@
 import io
 import os
+import pathlib
 from setuptools import find_packages, setup
 from torch.utils import cpp_extension
-
-import pathlib
-
 
 def remove_unwanted_pytorch_nvcc_flags():
     REMOVE_NVCC_FLAGS = [
@@ -22,7 +20,6 @@ def remove_unwanted_pytorch_nvcc_flags():
 
 remove_unwanted_pytorch_nvcc_flags()
 
-
 def get_compute_capability():
     forced_cap = os.environ.get("TRITEIA_COMPUTE_CAP", None)
     if forced_cap is not None:
@@ -35,6 +32,7 @@ def get_compute_capability():
             .split("\n")[0]
         )
         major, minor = compute_cap.split(".")
+        print(f"[TK] Detected compute capability: {major}{minor}")
         return f"{major}{minor}"
     except Exception as e:
         print(f"Failed to detect compute capability: {e}")
@@ -66,7 +64,6 @@ def read_requirements(path):
 
 
 compute_cap = get_compute_capability()
-print(f"Detected compute capability: {compute_cap}")
 if compute_cap is None:
     raise ValueError("Failed to detect compute capability")
 

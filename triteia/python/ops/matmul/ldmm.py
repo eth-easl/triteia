@@ -75,7 +75,6 @@ def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
 
     mask_lora = (indices < M) & (indices != -1)
     mask_sbmm = (indices >= M) & (indices != -1)
-  
     # ================== lora calculation ===============================
     if (mask_lora.sum() > 0):
 
@@ -102,7 +101,6 @@ def ldmm (indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
         x_sbmm = x[mask_sbmm]
         y_sbmm = y[mask_sbmm]
         indices_sbmm = indices[mask_sbmm] - M
-
         unique_sbmm_indices, counts = torch.unique_consecutive(indices_sbmm, return_counts=True)
         if len(unique_sbmm_indices) == 1:
             # use a normal matmul

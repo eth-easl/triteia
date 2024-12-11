@@ -1,8 +1,8 @@
 include LICENSE
 include HISTORY.md
 include Containerfile
-include requirements.txt
-include requirements-dev.txt
 include *.so
+include meta/requirements.txt
+include meta/requirements-dev.txt
 graft tests
 graft triteia
