@@ -1,6 +1,7 @@
 import torch
 import unittest
 from triteia.python.ops import (
+    baseline_ldmm,
     ldmm,
     lora_bgmv,
     sbmm_4bit_2_4_native
@@ -67,25 +68,76 @@ class TestLORAOp(unittest.TestCase):
             indices = torch.cat((indices_lora, indices_sbmm), 0)
             ldmm_output = ldmm(indices, x, LwA, LwB, qweight, meta, scale, base_weight=None)
 
+            # calculate the baseline ldmm result
+            baseline_output = baseline_ldmm(indices, x, LwA, LwB, qweight, meta, scale, base_weight=None)
+
             # Tolerances from punica
             rtol, atol = (5e-3, 5e-3)
-            all_close = torch.allclose(native_output, ldmm_output, rtol = rtol, atol = atol)
-            self.assertTrue(all_close)
-            if not all_close:
+
+            # Check the delta outputs
+            all_close_native_ldmm = torch.allclose(native_output[nr_lora:], ldmm_output[nr_lora:], rtol = rtol, atol = atol)
+            all_close_baseline_native = torch.allclose(native_output[nr_lora:], baseline_output[nr_lora:], rtol = rtol, atol = atol)
+            all_close_baseline_ldmm = torch.allclose(baseline_output[nr_lora:], ldmm_output[nr_lora:], rtol = rtol, atol = atol)
+            print(f"Native and LDMM delta outputs are close_delta: {all_close_native_ldmm}")
+            print(f"Native and Baseline delta outputs are close_delta: {all_close_baseline_native}")
+            print(f"Baseline and LDMM delta outputs are close_delta: {all_close_baseline_ldmm}")
+            self.assertTrue(all_close_native_ldmm)
+            self.assertTrue(all_close_baseline_native)
+            self.assertTrue(all_close_baseline_ldmm)
+            
+            # Check the lora outputs
+            all_close_native_ldmm = torch.allclose(native_output[:nr_lora], ldmm_output[:nr_lora], rtol = rtol, atol = atol)
+            all_close_baseline_native = torch.allclose(native_output[:nr_lora], baseline_output[:nr_lora], rtol = rtol, atol = atol)
+            all_close_baseline_ldmm = torch.allclose(baseline_output[:nr_lora], ldmm_output[:nr_lora], rtol = rtol, atol = atol)
+            print(f"Native and LDMM lora outputs are close: {all_close_native_ldmm}")
+            print(f"Native and Baseline lora outputs are close: {all_close_baseline_native}")
+            print(f"Baseline and LDMM lora outputs are close: {all_close_baseline_ldmm}")
+
+            self.assertTrue(all_close_native_ldmm)
+            if not all_close_native_ldmm:
+            # Print some individual elements different between native and ldmm
             # Check which individual elements are close
                 mask = torch.isclose(native_output, ldmm_output, rtol = rtol, atol = atol)
                 num = (~mask).sum().item()
                 print(f"Number of elements that are not close: {num}")
                 # Print the differences for elements that are not close
-                for i in range(min(mask.shape[0], 100)):
-                    for j in range(min(mask.shape[1], 100)):
+                for i in range(min(mask.shape[0], 1000)):
+                    for j in range(min(mask.shape[1], 10)):
                         if not mask[i, j]:
                             diff = native_output[i, j] - ldmm_output[i, j]
                             print(f"Index ({i}, {j}): native_output = {native_output[i, j]}, ldmm_output = {ldmm_output[i, j]}, difference = {diff}")
+            
+            #self.assertTrue(all_close_baseline)
+            if not all_close_baseline_ldmm:
+            # Print some individual elements different between ldmm and baseline
+            # Check which individual elements are close
+                mask = torch.isclose(ldmm_output, baseline_output, rtol = rtol, atol = atol)
+                num = (~mask).sum().item()
+                print(f"Number of elements that are not close: {num}")
+                # Print the differences for elements that are not close
+                for i in range(min(mask.shape[0], 1000)):
+                    for j in range(min(mask.shape[1], 10)):
+                        if not mask[i, j]:
+                            diff = ldmm_output[i, j] - baseline_output[i, j]
+                            print(f"Index ({i}, {j}): ldmm_output = {ldmm_output[i, j]}, baseline_output = {baseline_output[i, j]}, difference = {diff}")
+            
+            if not all_close_baseline_native:
+            # Print some individual elements different between native and baseline
+            # Check which individual elements are close
+                mask = torch.isclose(native_output, baseline_output, rtol = rtol, atol = atol)
+                num = (~mask).sum().item()
+                print(f"Number of elements that are not close: {num}")
+                # Print the differences for elements that are not close
+                for i in range(min(mask.shape[0], 1000)):
+                    for j in range(min(mask.shape[1], 10)):
+                        if not mask[i, j]:
+                            diff = native_output[i, j] - baseline_output[i, j]
+                            print(f"Index ({i}, {j}): native_output = {native_output[i, j]}, baseline_output = {baseline_output[i, j]}, difference = {diff}")
         except torch.cuda.OutOfMemoryError as e:
             print(f"Out of memory, skipping nr={nr}, nm_lora={nm_lora}, nm_sbmm={nm_sbmm}, m={m}, n={n}, rank={rank}")
         finally:
             torch.cuda.empty_cache()
+
 
     def test_tiny(self):
         # the rank needs to be divisble by 8
