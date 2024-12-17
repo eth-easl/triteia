@@ -1,4 +1,5 @@
 import json
+import re
 import cupy as cp
 from tqdm import tqdm
 import safetensors as st
@@ -13,6 +14,8 @@ from triteia.python.configs.models.llama import (
 )
 from triteia.python.ops.utils.generator import torch_weight_to_sparse_marlin
 
+def match_module(module: str, module_desc):
+    ".".join(module.split(".")[2:])
 
 @torch.no_grad()
 def convert_model(args, verbose=True):
@@ -74,17 +77,25 @@ def convert_model(args, verbose=True):
     # now start to pack weights together
     pack_plan = {}
     for module in quantized_modules:
-        if any([key in module for key in pack_modules.keys()]):
-            source_layer = module.rsplit(".", 2)[0]
+        if any([all([k in module for k in key.split(".")]) for key in pack_modules.keys()]):
+            source_layer = ".".join(module.split(".")[:3])
             source_module = module.replace(source_layer + ".", "")
+            idx = re.findall("[0-9]+", source_module)
+            if is_moe := len(idx):
+                idx = idx[0]
+                source_module = source_module.replace(idx, "$idx")
+            
             target_module = pack_modules[source_module]
+            if is_moe:
+                target_module = target_module.replace("$idx", idx)
+                source_module = source_module.replace("$idx", idx)
             target_idx = int(target_module.split(":")[1])
             target_module = source_layer + "." + target_module.split(":")[0]
             if target_module not in pack_plan:
                 pack_plan[target_module] = []
             pack_plan[target_module].append((module, target_idx))
 
-        elif any([key in module for key in row_chunking_modules]):
+        elif any([all([k in module for k in key.split(".")]) for key in row_chunking_modules]):
             qweights, scales, metas = torch_weight_to_sparse_marlin(
                 dequantized_tensors[module][0].to(DEV),
                 dequantized_tensors[module][1].to(DEV),

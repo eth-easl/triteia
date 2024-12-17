@@ -41,25 +41,10 @@ class sparse_low_precision_linear(nn.Module):
         self.infeatures = infeatures
         self.outfeatures = outfeatures
         self.groupsize = groupsize
-        self.register_buffer(
-            "qweight",
-            torch.empty(
-                (self.infeatures // 32, self.outfeatures * 16 // 8), dtype=torch.int32
-            ),
-        )
-        self.register_buffer(
-            "meta",
-            torch.empty((self.outfeatures, self.infeatures // 16), dtype=torch.int16),
-        )
-        self.register_buffer(
-            "scale",
-            torch.empty(
-                (self.infeatures // groupsize, self.outfeatures), dtype=torch.float16
-            ),
-        )
-        self.register_buffer(
-            "workspace", torch.zeros(self.outfeatures // 128 * 16, dtype=torch.int32)
-        )
+        self.qweight = nn.Parameter(torch.empty((self.infeatures // 32, self.outfeatures * 16 // 8), dtype=torch.int32), False)
+        self.meta = nn.Parameter(torch.empty((self.outfeatures, self.infeatures // 16), dtype=torch.int16), False)
+        self.scales = nn.Parameter(torch.empty((self.infeatures // groupsize, self.outfeatures), dtype=torch.float16), False)
+        self.workspace = nn.Parameter(torch.zeros(self.outfeatures // 128 * 16, dtype=torch.int32), False)
 
     def forward(self, x):
         C = torch.empty(
@@ -71,7 +56,7 @@ class sparse_low_precision_linear(nn.Module):
             self.qweight,
             self.meta,
             C.view((-1, C.shape[-1])),
-            self.scale,
+            self.scales,
             self.workspace,
         )
         return C

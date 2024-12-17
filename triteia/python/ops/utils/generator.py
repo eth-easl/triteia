@@ -58,10 +58,10 @@ def gen_sparse_quant4_NT(m, k, groupsize=-1, device="cuda", prune_n=2, prune_m=4
         groupsize = k
     layer.groupsize = groupsize
     layer.B = torch.empty((k_sp // 16, m * 16 // 8), dtype=torch.int, device=device)
-    layer.meta = torch.empty((m, k // 16), dtype=torch.int16, device=device)
-    layer.s = torch.empty(
+    layer.meta = nn.Parameter(torch.empty((m, k // 16), dtype=torch.int16, device=device), False)
+    layer.s = nn.Parameter(torch.empty(
         (k_sp // (groupsize // 2), m), dtype=torch.half, device=device
-    )
+    ), False)
     layer.pack(uncompress, s, True)
     q = layer.B
     s = layer.s
