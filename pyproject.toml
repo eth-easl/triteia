@@ -1,3 +1,0 @@
-[build-system]
-requires = ["setuptools >= 64", "torch>=2.4.0", "triton>=3.0.0"]
-build-backend = "setuptools.build_meta"
