@@ -37,7 +37,7 @@ def sbmm_4bit_2_4_forloop(qweights, xs, metas, ss, indices, base_weight=None):
             idx_mask = indices == id
             inp = xs[idx_mask]
             output = torch.zeros(
-                (inp.shape[0], y.shape[1]), dtype=torch.float16, device=xs.device
+                (inp.shape[0], y.shape[1]), dtype=xs.dtype, device=xs.device
             )
             mul_2_4(
                 inp,
