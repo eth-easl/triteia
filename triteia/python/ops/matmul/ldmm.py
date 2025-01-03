@@ -5,11 +5,17 @@ from triteia.python.capi import mul_2_4
 from triteia.python.ops import sbmm_4bit_2_4_forloop, lora_forloop
 
 
-def baseline_ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
-    if base_weight is not None:
-        y = torch.matmul(x, base_weight.t())
+def baseline_ldmm(
+    indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None, debug=False
+):
+    if x.dtype != torch.float16:
+        x_ = x.to(torch.float16)
     else:
-        y = torch.zeros(x.shape[0], LwB.shape[2], dtype=x.dtype, device=x.device)
+        x_ = x
+    if base_weight is not None:
+        y = torch.matmul(x_, base_weight.t())
+    else:
+        y = torch.zeros(x_.shape[0], LwB.shape[2], dtype=x_.dtype, device=x.device)
     if torch.all(indices == -1):
         return y
 
@@ -21,7 +27,7 @@ def baseline_ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
 
     # ================== lora calculation ===============================
     if mask_lora.sum() > 0:
-        x_lora = x[mask_lora]
+        x_lora = x_[mask_lora]
         y_lora = y[mask_lora]
         indices_lora = indices[mask_lora]
         indices_lora = indices_lora.to(torch.long)
@@ -31,16 +37,16 @@ def baseline_ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
 
     # ================== sbmm calculation ===============================
     if mask_sbmm.sum() > 0:
-        x_sbmm = x[mask_sbmm]
+        x_sbmm = x_[mask_sbmm]
         y_sbmm = y[mask_sbmm]
         indices_sbmm = indices[mask_sbmm] - M
         y_sbmm = sbmm_4bit_2_4_forloop(DeltaW, x_sbmm, metas, ss, indices_sbmm)
         y[mask_sbmm] = y_sbmm
 
-    return y
+    return y.to(x.dtype)
 
 
-def ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
+def ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None, debug=False):
     """
     Args:
         indices: Shape: `[B]`. `B` is the batch size. This tensor contains the index of the model to use for each
@@ -60,11 +66,12 @@ def ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
             and the selcted model .
 
     """
-
+    # assert x_.dtype == torch.float16, f"Input x must be of dtype torch.float16, got {x_.dtype}"
+    x_ = x.to(torch.float16)
     if base_weight is not None:
-        y = torch.matmul(x, base_weight.t())
+        y = torch.matmul(x_, base_weight.t())
     else:
-        y = torch.zeros(x.shape[0], LwB.shape[2], dtype=x.dtype, device=x.device)
+        y = torch.zeros(x_.shape[0], LwB.shape[2], dtype=x_.dtype, device=x_.device)
     if torch.all(indices == -1):
         return y
 
@@ -76,7 +83,7 @@ def ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
     # ================== lora calculation ===============================
     if mask_lora.sum() > 0:
 
-        x_lora = x[mask_lora]
+        x_lora = x_[mask_lora]
         y_lora = y[mask_lora]
         indices_lora = indices[mask_lora]
         indices_lora = indices_lora.to(torch.long)
@@ -97,7 +104,7 @@ def ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
 
     # ================== sbmm calculation ===============================
     if mask_sbmm.sum() > 0:
-        x_sbmm = x[mask_sbmm]
+        x_sbmm = x_[mask_sbmm]
         y_sbmm = y[mask_sbmm]
         indices_sbmm = indices[mask_sbmm] - M
         unique_sbmm_indices, counts = torch.unique_consecutive(
@@ -160,4 +167,4 @@ def ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None):
 
         y[mask_sbmm] = y_sbmm
 
-    return y
+    return y.to(x.dtype)
