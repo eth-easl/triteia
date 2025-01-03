@@ -1,6 +1,6 @@
 import torch
 import unittest
-from triteia.python.ops import ldmm, lora_bgmv, sbmm_4bit_2_4_native
+from triteia.python.ops import ldmm, lora_bgmv, sbmm_4bit_2_4_native, baseline_ldmm
 from triteia.python.configs.models.llama import llama_shapes
 from triteia.python.ops.utils.generator import generate_model_distribution
 from triteia.python.ops import gen_batched_lora_16_bit
@@ -65,10 +65,15 @@ class TestLORAOp(unittest.TestCase):
             ldmm_output = ldmm(
                 indices, x, LwA, LwB, qweight, meta, scale, base_weight=None
             )
+            baseline_ldmm_output = baseline_ldmm(
+                indices, x, LwA, LwB, qweight, meta, scale, base_weight=None
+            )
 
             # Tolerances from punica
             rtol, atol = (5e-3, 5e-3)
             all_close = torch.allclose(native_output, ldmm_output, rtol=rtol, atol=atol)
+            baseline_all_close = torch.allclose(native_output, baseline_ldmm_output, rtol=rtol, atol=atol)
+            self.assertTrue(baseline_all_close)
             self.assertTrue(all_close)
             if not all_close:
                 # Check which individual elements are close
@@ -80,6 +85,7 @@ class TestLORAOp(unittest.TestCase):
                     for j in range(min(mask.shape[1], 100)):
                         if not mask[i, j]:
                             diff = native_output[i, j] - ldmm_output[i, j]
+                            diff_baseline = native_output[i, j] - baseline_ldmm_output[i, j]
                             print(
                                 f"Index ({i}, {j}): native_output = {native_output[i, j]}, ldmm_output = {ldmm_output[i, j]}, difference = {diff}"
                             )
