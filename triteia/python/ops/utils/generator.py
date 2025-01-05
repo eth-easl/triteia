@@ -159,7 +159,10 @@ def torch_weight_to_sparse_marlin(weight, scale, tp_size=1, chunk_by="column"):
             tp_weight = weight[
                 i * weight.size(0) // tp_size : (i + 1) * weight.size(0) // tp_size, :
             ]
-            tp_scales = scale
+            # tp_scales = scale
+            tp_scales = scale[
+                i * scale.size(0) // tp_size : (i + 1) * scale.size(0) // tp_size, :
+            ]
         layer = sparse_low_precision_linear(
             infeatures=tp_weight.size(0), outfeatures=tp_weight.size(1), groupsize=-1
         )
@@ -167,8 +170,8 @@ def torch_weight_to_sparse_marlin(weight, scale, tp_size=1, chunk_by="column"):
         k_sp = k // 2
         layer.groupsize = k
         layer.B = torch.empty((k_sp // 16, m * 16 // 8), dtype=torch.int)
-        layer.meta = torch.empty((m, k // 16), dtype=torch.int16)
-        layer.s = torch.empty((k_sp // (k // 2), m), dtype=torch.half)
+        layer.meta = nn.Parameter(torch.empty((m, k // 16), dtype=torch.int16), False)
+        layer.s = nn.Parameter(torch.empty((k_sp // (k // 2), m), dtype=torch.half), False)
         layer.pack(tp_weight, scales=tp_scales, trans=True)
         qweights.append(layer.B.cuda().contiguous())
         scales.append(layer.s.cuda().contiguous())

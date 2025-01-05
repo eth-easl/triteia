@@ -8,6 +8,7 @@ from triteia.python.utils.io import save_tensors
 from triteia.python.utils.quant_utils import dequantize_weight
 from triteia.python.utils.compressor import LosslessCompressor
 from triteia.python.configs.models.llama import (
+    column_chunking_modules,
     row_chunking_modules,
     uncompressed_row_chunking_modules,
     pack_modules,
@@ -19,6 +20,7 @@ def match_module(module: str, module_desc):
 
 @torch.no_grad()
 def convert_model(args, verbose=True):
+    print(args)
     DEV = "cuda:0"
 
     new_tensors = {}
@@ -77,7 +79,7 @@ def convert_model(args, verbose=True):
     # now start to pack weights together
     pack_plan = {}
     for module in quantized_modules:
-        if any([all([k in module for k in key.split(".")]) for key in pack_modules.keys()]):
+        if args.pack and any([all([k in module for k in key.split(".")]) for key in pack_modules.keys()]):
             source_layer = ".".join(module.split(".")[:3])
             source_module = module.replace(source_layer + ".", "")
             idx = re.findall("[0-9]+", source_module)
@@ -101,6 +103,17 @@ def convert_model(args, verbose=True):
                 dequantized_tensors[module][1].to(DEV),
                 tp_size=args.tp_size,
                 chunk_by="row",
+            )
+            for idx, (qweight, scales, meta) in enumerate(zip(qweights, scales, metas)):
+                new_tensors[module + f".{idx}.qweight"] = qweight
+                new_tensors[module + f".{idx}.scales"] = scales
+                new_tensors[module + f".{idx}.meta"] = meta
+        elif not args.pack and any([all([k in module for k in key.split(".")]) for key in column_chunking_modules]):
+            qweights, scales, metas = torch_weight_to_sparse_marlin(
+                dequantized_tensors[module][0].to(DEV),
+                dequantized_tensors[module][1].to(DEV),
+                tp_size=args.tp_size,
+                chunk_by="column",
             )
             for idx, (qweight, scales, meta) in enumerate(zip(qweights, scales, metas)):
                 new_tensors[module + f".{idx}.qweight"] = qweight
@@ -155,6 +168,7 @@ if __name__ == "__main__":
     parser.add_argument("--save-path", type=str)
     parser.add_argument("--lossless", action="store_true")
     parser.add_argument("--pack", action="store_true")
+    parser.add_argument("--no-pack", dest="pack", action="store_false")
     args = parser.parse_args()
 
     print("Converting model...")
