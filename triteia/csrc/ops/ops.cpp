@@ -218,7 +218,7 @@ namespace punica {
     TORCH_CHECK(ok, "No suitable kernel.", " h_in=", h_in, " h_out=", h_out,
                 " dtype=", x.scalar_type());
   }
-} // namespace punica 
+} // namespace punica
 
 namespace triteia {
 const int ERR_PROB_SHAPE = 1;
@@ -328,15 +328,23 @@ void sbmm_2_4(const torch::Tensor &A, const torch::Tensor &B,
 }  // namespace triteia
 
 namespace vllm {
-void rotary_embedding(torch::Tensor &positions, torch::Tensor &query,
-                      torch::Tensor &key, int64_t head_size,
-                      torch::Tensor &cos_sin_cache, bool is_neox);
+void rotary_embedding(torch::Tensor &positions, torch::Tensor &query, torch::Tensor &key, int64_t head_size, torch::Tensor &cos_sin_cache, bool is_neox);
 
-void batched_rotary_embedding(torch::Tensor &positions, torch::Tensor &query,
-                              torch::Tensor &key, int64_t head_size,
-                              torch::Tensor &cos_sin_cache, bool is_neox,
-                              int64_t rot_dim,
-                              torch::Tensor &cos_sin_cache_offsets);
+void batched_rotary_embedding(torch::Tensor &positions, torch::Tensor &query,torch::Tensor &key, int64_t head_size, torch::Tensor &cos_sin_cache, bool is_neox, int64_t rot_dim, torch::Tensor &cos_sin_cache_offsets);
+
+void silu_and_mul(torch::Tensor& out, torch::Tensor& input);
+
+void gelu_and_mul(torch::Tensor& out, torch::Tensor& input);
+
+void gelu_tanh_and_mul(torch::Tensor& out, torch::Tensor& input);
+
+void fatrelu_and_mul(torch::Tensor& out, torch::Tensor& input, double threshold);
+
+void gelu_new(torch::Tensor& out, torch::Tensor& input);
+
+void gelu_fast(torch::Tensor& out, torch::Tensor& input);
+
+void gelu_quick(torch::Tensor& out, torch::Tensor& input);
 }  // namespace vllm
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
@@ -349,7 +357,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("sbmm_forloop", &triteia::sbmm_forloop,
         "FP16xINT4 sbmm with 2:4 sparsity.");
   m.def("sbmm_2_4", &triteia::sbmm_2_4, "FP16xINT4 sbmm with 2:4 sparsity.");
-  m.def("rotary_embedding", &vllm::rotary_embedding,
-        "Apply GPT-NeoX or GPT-J style rotary embedding to query and key.");
+
+  m.def("rotary_embedding", &vllm::rotary_embedding, "Apply GPT-NeoX or GPT-J style rotary embedding to query and key.");
   m.def("batched_rotary_embedding", &vllm::batched_rotary_embedding, "Apply GPT-NeoX or GPT-J style rotary embedding to query and key (supports multiple loras).");
+  m.def("gelu_quick", &vllm::gelu_quick, "GELU activation function.");
 }

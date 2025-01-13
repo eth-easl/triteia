@@ -4,6 +4,7 @@ import pathlib
 from setuptools import find_packages, setup
 from torch.utils import cpp_extension
 
+
 def remove_unwanted_pytorch_nvcc_flags():
     REMOVE_NVCC_FLAGS = [
         "-D__CUDA_NO_HALF_OPERATORS__",
@@ -19,6 +20,7 @@ def remove_unwanted_pytorch_nvcc_flags():
 
 
 remove_unwanted_pytorch_nvcc_flags()
+
 
 def get_compute_capability():
     forced_cap = os.environ.get("TRITEIA_COMPUTE_CAP", None)
@@ -84,6 +86,7 @@ setup(
             [
                 "triteia/csrc/ops/ops.cpp",
                 "triteia/csrc/ops/sgmv.cu",
+                "triteia/csrc/ops/activations.cu",
                 "triteia/csrc/ops/bgmv_all.cu",
                 "triteia/csrc/ops/marlin_nm.cu",
                 "triteia/csrc/ops/triteia_nm_bmm.cu",
