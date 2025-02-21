@@ -98,12 +98,12 @@ if __name__ == "__main__":
     results = []
     nr = [100]
     nm = [
-        [1, 1, 2, 4, 8, 16, 32, 64, 100],
+        [1, 2, 4, 8, 16, 32, 64, 100],
     ]
     distributions = ["zipf:2.0"]
-    ms = [4096]
-    ns = [4096, 8192]
-    ranks = [32]
+    ms = [3072]
+    ns = [3072, 8192]
+    ranks = [16]
     for rank in ranks:
         for distribution in distributions:
             for i in range(len(nr)):
