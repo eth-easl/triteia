@@ -95,15 +95,15 @@ def benchmark(distribution, nr_lora, nr_sbmm, nm_lora, nm_sbmm, m, n, rank, grou
 
 if __name__ == "__main__":
     results = []
-    nr_lora = [99, 99, 90, 80, 70, 60, 50, 40, 30, 20, 10, 1]
-    nr_sbmm = [1, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 99]
+    nr_sbmm = [100, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90]
+    nr_lora = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     nm = [
         [50],[50],[50],[50],[50],[50],[50],[50],[50],[50],[50],[50]
     ]
     distributions = ["zipf:2.0"]
-    ms = [4096]
-    ns = [4096, 8192]
-    ranks = [32]
+    ms = [3072]
+    ns = [3072, 8192]
+    ranks = [64]
     for rank in ranks:
         for distribution in distributions:
             for i in range(len(nr_lora)):

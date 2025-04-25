@@ -31,6 +31,8 @@ def baseline_ldmm(
         y_lora = y[mask_lora]
         indices_lora = indices[mask_lora]
         indices_lora = indices_lora.to(torch.long)
+        LwA = LwA.to(torch.float16)
+        LwB = LwB.to(torch.float16)
 
         y_lora = lora_forloop(LwA, LwB, x_lora, indices_lora)
         y[mask_lora] = y_lora
@@ -95,6 +97,8 @@ def ldmm(indices, x, LwA, LwB, DeltaW, metas, ss, base_weight=None, debug=False)
         # Add layer dimension
         LwA_T = LwA_T.unsqueeze(1)
         LwB_T = LwB_T.unsqueeze(1)
+        LwA_T = LwA_T.to(torch.float16)
+        LwB_T = LwB_T.to(torch.float16)
 
         add_lora_bgmv(
             y_lora, x_lora, LwA_T, LwB_T, indices_lora, layer_idx=0, scale=1.0
