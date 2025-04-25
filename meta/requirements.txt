@@ -3,4 +3,5 @@ rich
 ninja
 numpy
 pandas
+nvidia-nvcomp-cu12
 attn_gym @ git+https://github.com/pytorch-labs/attention-gym.git
